@@ -32,6 +32,9 @@ final class FakeHttp implements HttpClient
 
     public int $tokens = 0;
 
+    /** @var array<string,Closure> "METHOD path" => run while that request is in flight */
+    public array $during = array();
+
     public function __construct()
     {
         $this->routes['POST v1/oauth2/token'] = array('status' => 200, 'body' => '');
@@ -52,11 +55,14 @@ final class FakeHttp implements HttpClient
         $this->routes[$method . ' ' . $path] = new HttpException('PayPal could not be reached: timeout');
     }
 
-    public function send(string $method, string $url, array $headers, ?string $body = null): array
+    public function send(string $method, string $url, array $headers, ?string $body = null, ?int $timeout = null): array
     {
-        $this->requests[] = array('method' => $method, 'url' => $url, 'headers' => $headers, 'body' => $body);
+        $this->requests[] = array('method' => $method, 'url' => $url, 'headers' => $headers, 'body' => $body, 'timeout' => $timeout);
         $path = (string) preg_replace('#^https://api-m\.(sandbox\.)?paypal\.com/#', '', $url);
         $key  = $method . ' ' . $path;
+        if (isset($this->during[$key])) {
+            ($this->during[$key])();
+        }
 
         if (!empty($this->once[$key])) {
             return array_shift($this->once[$key]);
@@ -260,9 +266,10 @@ function fake_config(array $over = array()): Config
  */
 function fake_gateway(FakeHttp $http, MemoryOrders $orders, array $config = array(), ?Closure $settle = null, ?MemoryCache $cache = null): PayPalGateway
 {
-    $GLOBALS['settled'] = array();
-    $GLOBALS['queued']  = array();
-    $GLOBALS['input']   = array('', array());
+    $GLOBALS['settled']  = array();
+    $GLOBALS['queued']   = array();
+    $GLOBALS['notified'] = array();
+    $GLOBALS['input']    = array('', array());
 
     $gateway = null;
     $gateway = new PayPalGateway(
@@ -279,6 +286,9 @@ function fake_gateway(FakeHttp $http, MemoryOrders $orders, array $config = arra
         },
         static function (string $id): void {
             $GLOBALS['queued'][] = $id;
+        },
+        static function (string $subject, array $lines): void {
+            $GLOBALS['notified'][] = array($subject, $lines);
         }
     );
 
@@ -390,8 +400,21 @@ function pp_headers(): array
         'cert-url'          => 'https://api.sandbox.paypal.com/v1/notifications/certs/CERT-360caa42-fca2a594-1d93a270',
         'transmission-id'   => '69cd13f0-d67a-11e5-baa3-778b53f4ae55',
         'transmission-sig'  => 'lmI95Jx3Y9nhR5SJWlHVIWpg4AgFk7n9bCHSRxbrd8A9zrhdu2rMyFrmz+Zjh3s3boXB07VXCXUZy/UFzUlnGJn0wDugt7FlSvdKeIJenLRemUxYCPVoEZzg9VFNqOa48gMkvF+XTpxBeUx/kWy6B5cp7GkT2+pOowfRK7OaynuxUoKW3JcMWw272VKjLTtTAShncla7tGF+55rxyt2KNZIIqxNMJ48RDZheGU5w1npu9dZHnPgTXB9iomeVRoD8O/jhRpnKsGrDschyNdkeh81BJJMH4Ctc6lnCCquoP/GzCzz33MMsNdid7vL/NIWaCsekQpW26FpWPi/tfj8nLA==',
-        'transmission-time' => '2026-10-13T10:00:00Z',
+        'transmission-time' => gmdate('Y-m-d\\TH:i:s\\Z'),
     );
+}
+
+/**
+ * Make PayPal answer lookups of the order: its PayPal order (completed with a capture unless
+ * $status says otherwise) and that capture.
+ */
+function pp_lookup(FakeHttp $http, Order $order, string $status = 'COMPLETED', ?array $captures = null): void
+{
+    $paypal = pp_order($order, $status, $captures);
+    $http->on('GET', 'v2/checkout/orders/' . pp_order_id($order->getId()), 200, $paypal);
+    foreach ($paypal['purchase_units'][0]['payments']['captures'] ?? array() as $capture) {
+        $http->on('GET', 'v2/payments/captures/' . $capture['id'], 200, $capture);
+    }
 }
 
 /** Put a webhook on the fake input, and make PayPal's verify call answer $status. */

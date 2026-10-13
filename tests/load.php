@@ -83,6 +83,14 @@ pin('an empty client id is allowed until the admin has one', null, ($fields['liv
 pin('a webhook id is accepted', null, ($fields['live_webhook_id']['validate'])(HOOK_ID));
 check('a URL in the webhook id box is refused', ($fields['live_webhook_id']['validate'])('https://example.com/hook') !== null);
 check('a secret with spaces is refused', ($fields['live_secret']['validate'])('two words') !== null);
+pin('saving the page drops the kept connection check', array(Plugin::class, 'settingsSaved'), $GLOBALS['__settings']['paypal']['after_save'] ?? null);
+$deprecated = array();
+foreach (glob(__DIR__ . '/../src/*.php') as $file) {
+    if (preg_match('/Registry::instance\(/', (string) file_get_contents($file))) {
+        $deprecated[] = basename($file);
+    }
+}
+pin('core registries are reached through getInstance(), not the deprecated instance()', array(), $deprecated);
 check('the webhook info and connection check store nothing', $fields['webhook_info']['type'] === 'custom' && $fields['connection']['type'] === 'custom');
 
 exit(harness_result());

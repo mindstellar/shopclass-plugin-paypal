@@ -24,8 +24,12 @@ $id      = 'WH-2WR32451HC0233532-67976317FL4543714';
 harness_section('the event job');
 
 $http->on('GET', 'v1/notifications/webhooks-events/' . $id, 200, event('PAYMENT.CAPTURE.COMPLETED', pp_capture($order), $id));
+pp_lookup($http, $order);
 $r = $gateway->processEvent($id);
-pin('the event is fetched from PayPal', 'https://api-m.sandbox.paypal.com/v1/notifications/webhooks-events/' . $id, $http->lastCall()['url']);
+pin('the event is fetched from PayPal, then its order', array(
+    'https://api-m.sandbox.paypal.com/v1/notifications/webhooks-events/' . $id,
+    'https://api-m.sandbox.paypal.com/v2/checkout/orders/' . pp_order_id(1),
+), array_column($http->calls(), 'url'));
 pin('and settled through the same path as the webhook', CallbackResult::OUTCOME_PAID, $r->getOutcome());
 pin('once', 1, count($GLOBALS['settled']));
 

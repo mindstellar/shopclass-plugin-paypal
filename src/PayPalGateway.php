@@ -39,6 +39,9 @@ final class PayPalGateway implements RefundableGateway, DashboardLinkGateway
     /** Order meta key for the mode the PayPal order was made in. */
     public const META_MODE = 'paypal_mode';
 
+    /** Order meta key set once a payment for an order already closed has been refunded. */
+    public const META_CLOSED_REFUND = 'paypal_closed_refund';
+
     /** Request key holding a Verified object. */
     public const TRUSTED = 'paypal_verified';
 
@@ -67,6 +70,9 @@ final class PayPalGateway implements RefundableGateway, DashboardLinkGateway
     /** fn(string $eventId): void -- queue an event for a later retry. */
     private Closure $queue;
 
+    /** fn(string $subject, string[] $lines): void -- tell the admin. */
+    private Closure $notify;
+
     public function __construct(
         private Config $config,
         HttpClient $http,
@@ -74,7 +80,8 @@ final class PayPalGateway implements RefundableGateway, DashboardLinkGateway
         ?TokenCache $cache = null,
         ?Closure $input = null,
         ?Closure $settle = null,
-        ?Closure $queue = null
+        ?Closure $queue = null,
+        ?Closure $notify = null
     ) {
         $this->api    = new PayPalApi($http, $config->apiBase(), $config->clientId, $config->secret, $cache ?? new KvTokenCache());
         $this->input  = $input ?? static function (): array {
@@ -88,6 +95,9 @@ final class PayPalGateway implements RefundableGateway, DashboardLinkGateway
         $this->settle = $settle ?? static fn (array $request): CallbackResult => Billing::handleCallback(self::ID, $request);
         $this->queue  = $queue ?? static function (string $eventId): void {
             osc_job_enqueue(Plugin::JOB_EVENT, array('event' => $eventId), array('unique_key' => $eventId));
+        };
+        $this->notify = $notify ?? static function (string $subject, array $lines): void {
+            Plugin::mailAdmin($subject, $lines);
         };
     }
 
@@ -374,6 +384,16 @@ final class PayPalGateway implements RefundableGateway, DashboardLinkGateway
     }
 
     /**
+     * Names the active mode and credentials, without revealing them, for the kept connection check.
+     *
+     * @return string
+     */
+    public function connectionKey(): string
+    {
+        return hash('sha256', implode("\n", array($this->config->mode, $this->config->clientId, $this->config->secret, $this->config->webhookId)));
+    }
+
+    /**
      * For the settings page: whether the credentials work and the webhook is set up.
      *
      * @param string $webhookUrl This site's webhook URL
@@ -429,7 +449,7 @@ final class PayPalGateway implements RefundableGateway, DashboardLinkGateway
     }
 
     /**
-     * The webhook: check the event with PayPal, then settle it.
+     * The webhook: check the headers here and the event with PayPal, then settle it.
      *
      * @return CallbackResult
      */
@@ -442,6 +462,9 @@ final class PayPalGateway implements RefundableGateway, DashboardLinkGateway
         }
         if (!in_array($event['event_type'], self::EVENTS, true)) {
             return CallbackResult::ignored('event not handled');
+        }
+        if (!PayPalApi::plausibleHeaders($headers)) {
+            return CallbackResult::ignored('bad signature');
         }
 
         try {
@@ -470,7 +493,8 @@ final class PayPalGateway implements RefundableGateway, DashboardLinkGateway
     }
 
     /**
-     * What one verified event means for its order.
+     * What one verified event means for its order. Only the ids are read from the event;
+     * the state of the payment is asked of PayPal.
      *
      * @param array<string,mixed> $event
      *
@@ -485,13 +509,11 @@ final class PayPalGateway implements RefundableGateway, DashboardLinkGateway
 
         switch ($event['event_type'] ?? '') {
             case 'CHECKOUT.ORDER.APPROVED':
-                return $this->fromApproved($resource);
+                return $this->fromOrderEvent((string) ($resource['id'] ?? ''), $resource['purchase_units'][0]['custom_id'] ?? null);
 
             case 'PAYMENT.CAPTURE.COMPLETED':
-                return $this->fromCapture($resource);
-
             case 'PAYMENT.CAPTURE.DENIED':
-                return $this->captureDenied($resource);
+                return $this->fromOrderEvent(self::relatedOrder($resource), $resource['custom_id'] ?? null);
 
             case 'PAYMENT.CAPTURE.REFUNDED':
                 return $this->fromRefund($resource);
@@ -502,97 +524,61 @@ final class PayPalGateway implements RefundableGateway, DashboardLinkGateway
     }
 
     /**
-     * The buyer approved but never came back: capture it here.
+     * An event about one PayPal order: look the order up at PayPal and settle what it says.
+     * An approved order is captured, unless the core order is closed.
      *
-     * @param array<string,mixed> $paypal The PayPal order
-     *
-     * @return CallbackResult
-     */
-    private function fromApproved(array $paypal): CallbackResult
-    {
-        $paypalId = (string) ($paypal['id'] ?? '');
-        $unit     = $paypal['purchase_units'][0] ?? array();
-        $order    = $this->ourOrder($paypalId, $unit['custom_id'] ?? null, null);
-        if ($order === null || !$this->sameMoney($order, $unit['amount'] ?? null)) {
-            return CallbackResult::ignored('not an order of this site');
-        }
-
-        return $this->capture($paypalId, $order);
-    }
-
-    /**
-     * A completed capture pays its order. Core ignores it for an order already paid.
-     *
-     * @param array<string,mixed> $capture
+     * @param string $paypalId
+     * @param mixed  $customId
      *
      * @return CallbackResult
+     * @throws HttpException when PayPal cannot be reached or fails
      */
-    private function fromCapture(array $capture): CallbackResult
+    private function fromOrderEvent(string $paypalId, $customId): CallbackResult
     {
-        $order = $this->ourOrder(self::relatedOrder($capture), $capture['custom_id'] ?? null, null);
+        $order = $this->ourOrder($paypalId, $customId, null);
         if ($order === null) {
             return CallbackResult::ignored('not an order of this site');
         }
-        if (($capture['status'] ?? '') !== 'COMPLETED') {
-            return CallbackResult::ignored('capture not completed');
-        }
 
-        return $this->paidFrom($capture, $order);
+        return $this->check($paypalId, $order, false);
     }
 
     /**
-     * A denied capture closes its order unpaid. Core does not compare money here, so this does.
-     *
-     * @param array<string,mixed> $capture
-     *
-     * @return CallbackResult
-     */
-    private function captureDenied(array $capture): CallbackResult
-    {
-        $order = $this->ourOrder(self::relatedOrder($capture), $capture['custom_id'] ?? null, null);
-        if ($order === null || !$this->sameMoney($order, $capture['amount'] ?? null)) {
-            return CallbackResult::ignored('not an order of this site');
-        }
-
-        return CallbackResult::failed($order->getId(), 'capture denied');
-    }
-
-    /**
-     * A capture refunded in full reverses its order. A partial refund changes nothing.
+     * A capture refunded in full reverses its order. The capture's state comes from PayPal;
+     * a partial refund changes nothing.
      *
      * @param array<string,mixed> $refund
      *
      * @return CallbackResult
+     * @throws HttpException when PayPal cannot be reached or fails
      */
     private function fromRefund(array $refund): CallbackResult
     {
-        $capture = null;
+        $captureId = null;
         foreach ((array) ($refund['links'] ?? array()) as $link) {
             if (is_array($link) && ($link['rel'] ?? '') === 'up'
                 && preg_match('#/v2/payments/captures/([A-Z0-9]{10,40})$#', (string) ($link['href'] ?? ''), $m)
             ) {
-                $capture = $m[1];
+                $captureId = $m[1];
             }
         }
-        if ($capture === null) {
+        if ($captureId === null) {
             return CallbackResult::ignored('refund names no capture');
         }
 
-        $order  = $this->orders->findByRef($capture);
+        $order  = $this->orders->findByRef($captureId);
         $custom = $refund['custom_id'] ?? null;
         if ($order === null || (is_string($custom) && $custom !== (string) $order->getId())) {
             return CallbackResult::ignored('not an order of this site');
         }
-        if (($refund['status'] ?? '') !== 'COMPLETED') {
-            return CallbackResult::ignored('refund not completed');
-        }
 
-        $total = $refund['seller_payable_breakdown']['total_refunded_amount'] ?? $refund['amount'] ?? null;
-        if (!$this->sameMoney($order, $total)) {
-            return CallbackResult::ignored('partial refund');
+        $capture = $this->api->capture($captureId);
+        if (($capture['id'] ?? '') !== $captureId || ($capture['status'] ?? '') !== 'REFUNDED') {
+            return CallbackResult::ignored('not refunded in full');
         }
+        $refundId = (string) ($refund['id'] ?? '');
 
-        return CallbackResult::refunded($order->getId(), (string) ($refund['id'] ?? ''));
+        return CallbackResult::refunded($order->getId(), self::isId($refundId) ? $refundId : null);
     }
 
     /**
@@ -629,7 +615,7 @@ final class PayPalGateway implements RefundableGateway, DashboardLinkGateway
     }
 
     /**
-     * Look the PayPal order up and settle what it says; an approved one is captured.
+     * Look the PayPal order up and settle what it says; an approved one is captured while the order is pending.
      *
      * @param string $paypalId
      * @param Order  $order
@@ -640,10 +626,6 @@ final class PayPalGateway implements RefundableGateway, DashboardLinkGateway
      */
     private function check(string $paypalId, Order $order, bool $closeUnpaid): CallbackResult
     {
-        if (!$order->isPending()) {
-            return CallbackResult::ignored('order is no longer pending');
-        }
-
         try {
             $paypal = $this->api->order($paypalId);
         } catch (HttpException $e) {
@@ -652,18 +634,25 @@ final class PayPalGateway implements RefundableGateway, DashboardLinkGateway
             }
 
             // PayPal drops orders nobody approved.
-            return $closeUnpaid
+            return $closeUnpaid && $order->isPending()
                 ? CallbackResult::failed($order->getId(), 'PayPal no longer has this order')
                 : CallbackResult::ignored('PayPal does not have this order');
         }
+        if (($paypal['id'] ?? '') !== $paypalId) {
+            return CallbackResult::ignored('PayPal answered with another order');
+        }
 
         if (($paypal['status'] ?? '') === 'APPROVED') {
+            if (!$order->isPending()) {
+                return CallbackResult::ignored('order is no longer pending');
+            }
+
             return $this->sameMoney($order, $paypal['purchase_units'][0]['amount'] ?? null)
                 ? $this->capture($paypalId, $order)
                 : CallbackResult::ignored('not an order of this site');
         }
 
-        return $this->fromPayPalOrder($paypal, $order, $closeUnpaid);
+        return $this->fromPayPalOrder($paypal, $order, $closeUnpaid && $order->isPending());
     }
 
     /**
@@ -674,6 +663,7 @@ final class PayPalGateway implements RefundableGateway, DashboardLinkGateway
      * @param bool                $closeUnpaid
      *
      * @return CallbackResult
+     * @throws HttpException when a capture for a closed order cannot be refunded yet
      */
     private function fromPayPalOrder(array $paypal, Order $order, bool $closeUnpaid): CallbackResult
     {
@@ -683,7 +673,7 @@ final class PayPalGateway implements RefundableGateway, DashboardLinkGateway
 
         foreach ($captures as $capture) {
             if (in_array($capture['status'] ?? '', array('COMPLETED', 'PARTIALLY_REFUNDED'), true)) {
-                return $this->paidFrom($capture, $order);
+                return $this->settleCapture($capture, $order);
             }
         }
         if (in_array('PENDING', $statuses, true)) {
@@ -707,13 +697,16 @@ final class PayPalGateway implements RefundableGateway, DashboardLinkGateway
 
     /**
      * A paid result from a completed capture, with PayPal's own figures for core to check.
+     * The order is read again first: a cancel or the daily check may have closed it while
+     * PayPal was asked, and then the money goes back to the buyer.
      *
      * @param array<string,mixed> $capture
      * @param Order               $order
      *
      * @return CallbackResult
+     * @throws HttpException when a capture for a closed order cannot be refunded yet
      */
-    private function paidFrom(array $capture, Order $order): CallbackResult
+    private function settleCapture(array $capture, Order $order): CallbackResult
     {
         $id    = (string) ($capture['id'] ?? '');
         $money = Money::fromAmount($capture['amount'] ?? null);
@@ -721,7 +714,76 @@ final class PayPalGateway implements RefundableGateway, DashboardLinkGateway
             return CallbackResult::ignored('malformed capture');
         }
 
+        $now = $this->orders->find($order->getId()) ?? $order;
+        if (in_array($now->getStatus(), array(Order::STATUS_FAILED, Order::STATUS_CANCELLED), true)) {
+            return $this->refundClosed($now, $id);
+        }
+
         return CallbackResult::paid($order->getId(), $id, $money[0], $money[1]);
+    }
+
+    /**
+     * Give back money PayPal took for an order core had already closed, and tell the admin.
+     * Done once per order; a refund PayPal could not be asked for throws, so it is retried.
+     *
+     * @param Order  $order
+     * @param string $captureId
+     *
+     * @return CallbackResult
+     * @throws HttpException when PayPal cannot be reached or fails
+     */
+    private function refundClosed(Order $order, string $captureId): CallbackResult
+    {
+        if ($order->meta(self::META_CLOSED_REFUND) !== null) {
+            return CallbackResult::ignored('payment for a closed order was already handled');
+        }
+
+        $subject = __('PayPal: a payment arrived for a closed order', 'paypal');
+        try {
+            $refund = $this->api->refundCapture($captureId, 'closed-' . $this->config->siteId . '-' . $order->getId());
+        } catch (HttpException $e) {
+            $code = $e->getCode();
+            if ($code < 400 || $code >= 500 || $code === 401) {
+                throw $e;
+            }
+            $this->remember($order->getId(), self::META_CLOSED_REFUND, 'refused');
+            $this->tell($subject, array(
+                sprintf(__('PayPal payment %1$s for order #%2$d arrived after the order was closed, and PayPal refused to refund it: %3$s', 'paypal'), $captureId, $order->getId(), self::short($e->getMessage())),
+                __('Refund it in your PayPal account. The buyer was not given credits.', 'paypal'),
+            ));
+
+            return CallbackResult::ignored('payment for a closed order; refund refused');
+        }
+
+        $status = (string) ($refund['status'] ?? '');
+        if (!in_array($status, array('COMPLETED', 'PENDING'), true)) {
+            throw new HttpException('PayPal did not refund capture ' . $captureId . ($status !== '' ? ' (' . $status . ')' : ''));
+        }
+        $this->remember($order->getId(), self::META_CLOSED_REFUND, (string) ($refund['id'] ?? $status));
+        $this->tell($subject, array(
+            sprintf(__('PayPal payment %1$s for order #%2$d arrived after the order was closed. It was refunded to the buyer at PayPal.', 'paypal'), $captureId, $order->getId()),
+            __('Nothing else needs doing. The buyer was not given credits.', 'paypal'),
+        ));
+
+        return CallbackResult::ignored('payment for a closed order; refunded');
+    }
+
+    /**
+     * Mail the admin. A mail that fails is logged, never fatal.
+     *
+     * @param string   $subject
+     * @param string[] $lines
+     *
+     * @return void
+     */
+    private function tell(string $subject, array $lines): void
+    {
+        error_log('PayPal: ' . implode(' ', $lines));
+        try {
+            ($this->notify)($subject, $lines);
+        } catch (Throwable $e) {
+            error_log('PayPal: could not mail the admin: ' . $e->getMessage());
+        }
     }
 
     /**

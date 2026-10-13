@@ -24,7 +24,7 @@ final class CurlClient implements HttpClient
     ) {
     }
 
-    public function send(string $method, string $url, array $headers, ?string $body = null): array
+    public function send(string $method, string $url, array $headers, ?string $body = null, ?int $timeout = null): array
     {
         if (!function_exists('curl_init')) {
             throw new HttpException('The PHP curl extension is not installed');
@@ -40,8 +40,8 @@ final class CurlClient implements HttpClient
             CURLOPT_CUSTOMREQUEST  => $method,
             CURLOPT_RETURNTRANSFER => true,
             CURLOPT_HTTPHEADER     => $lines,
-            CURLOPT_CONNECTTIMEOUT => $this->connectTimeout,
-            CURLOPT_TIMEOUT        => $this->timeout,
+            CURLOPT_CONNECTTIMEOUT => min($this->connectTimeout, $timeout ?? $this->connectTimeout),
+            CURLOPT_TIMEOUT        => $timeout ?? $this->timeout,
             CURLOPT_SSL_VERIFYPEER => true,
             CURLOPT_SSL_VERIFYHOST => 2,
             CURLOPT_FOLLOWLOCATION => false,

@@ -47,6 +47,22 @@ function osc_esc_html($s)
 {
     return htmlspecialchars((string) $s, ENT_QUOTES, 'UTF-8');
 }
+$GLOBALS['kv'] = array();
+function osc_kv_get($group, $key, $default = null)
+{
+    return $GLOBALS['kv'][$group][$key] ?? $default;
+}
+function osc_kv_set($group, $key, $value, $ttl = null)
+{
+    $GLOBALS['kv'][$group][$key] = $value;
+    $GLOBALS['kv_ttl'][$group][$key] = $ttl;
+}
+function osc_kv_delete($group, $key)
+{
+    unset($GLOBALS['kv'][$group][$key]);
+
+    return true;
+}
 function osc_base_url($withIndex = false)
 {
     return 'https://shop.test/' . ($withIndex ? 'index.php' : '');
@@ -123,10 +139,11 @@ Plugin::$factory = static fn (): PayPalGateway => $gateway;
 Plugin::registerJobs();
 check('both job types have a handler', isset($GLOBALS['jobs'][Plugin::JOB_EVENT], $GLOBALS['jobs'][Plugin::JOB_RECONCILE]));
 
+pp_lookup($http, $order);
 ($GLOBALS['jobs'][Plugin::JOB_EVENT])(new Job(array('pk_i_id' => 1), array('event' => 'WH-JOB-1')));
-pin('the event job fetches that event from PayPal', 'https://api-m.sandbox.paypal.com/v1/notifications/webhooks-events/WH-JOB-1', $http->lastCall()['url'] ?? null);
+pin('the event job fetches that event from PayPal', 'https://api-m.sandbox.paypal.com/v1/notifications/webhooks-events/WH-JOB-1', $http->calls()[0]['url'] ?? null);
 pin('and settles its order', Order::STATUS_PAID, $orders->find(1)->getStatus());
-check('the gateway was registered for the job', PaymentGatewayRegistry::instance()->get('paypal') === $gateway);
+check('the gateway was registered for the job', PaymentGatewayRegistry::getInstance()->get('paypal') === $gateway);
 
 $GLOBALS['billing'] = false;
 $threw              = false;
@@ -183,11 +200,42 @@ check('that never shows the secret', !str_contains($lines[0][1], fake_config()->
 
 pin('no credentials: one hint, and PayPal is not asked', array('warning'), array_column(fake_gateway(new FakeHttp(), new MemoryOrders(), array('secret' => ''))->diagnose($url), 0));
 
-$http = new FakeHttp();
-Plugin::$factory = static fn (): PayPalGateway => fake_gateway($http, new MemoryOrders(), array('webhook' => ''));
-ob_start();
-Plugin::renderConnection();
-$html = (string) ob_get_clean();
+$http   = new FakeHttp();
+$config = array('webhook' => '');
+Plugin::$factory = static function () use ($http, &$config): PayPalGateway {
+    return fake_gateway($http, new MemoryOrders(), $config);
+};
+$render = static function (): string {
+    ob_start();
+    Plugin::renderConnection();
+
+    return (string) ob_get_clean();
+};
+$html = $render();
 check('the settings page renders the check as a list', str_contains($html, '<li class="text-success">Connected to the PayPal sandbox.</li>') && str_contains($html, 'text-warning'));
+$count = count($http->requests);
+pin('it asked PayPal', 1, $count);
+
+harness_section('the connection check is kept for ten minutes');
+
+pin('the next load shows the same', $html, $render());
+pin('without asking PayPal', $count, count($http->requests));
+pin('kept for ten minutes', 600, $GLOBALS['kv_ttl']['paypal']['connection']);
+check('what is kept holds no credentials', !str_contains(json_encode($GLOBALS['kv']), fake_config()->secret) && !str_contains(json_encode($GLOBALS['kv']), fake_config()->clientId));
+
+Plugin::settingsSaved();
+$render();
+pin('saving the settings checks again on the next load', $count + 1, count($http->requests));
+$render();
+pin('and keeps that answer', $count + 1, count($http->requests));
+
+$config = array('webhook' => '', 'secret' => 'ENewSecret_aaaaaaaaaaaaaaaaaaaaaaaa');
+$render();
+pin('new credentials check again even without a save', $count + 2, count($http->requests));
+$config = array('webhook' => '', 'mode' => 'live');
+$render();
+pin('so does the other mode', $count + 3, count($http->requests));
+
+Plugin::$factory = null;
 
 exit(harness_result());

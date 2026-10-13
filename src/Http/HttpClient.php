@@ -23,9 +23,10 @@ interface HttpClient
      * @param string               $url
      * @param array<string,string> $headers name => value
      * @param string|null          $body    Request body, for POST
+     * @param int|null             $timeout Seconds for the whole request, when shorter than the client's own
      *
      * @return array{status:int,body:string}
      * @throws HttpException when no response came back at all
      */
-    public function send(string $method, string $url, array $headers, ?string $body = null): array;
+    public function send(string $method, string $url, array $headers, ?string $body = null, ?int $timeout = null): array;
 }

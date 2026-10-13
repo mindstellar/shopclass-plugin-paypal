@@ -43,6 +43,12 @@ final class Plugin
     /** Daily job that checks pending orders PayPal never told us about. */
     public const JOB_RECONCILE = 'paypal.reconcile';
 
+    /** Key-value entry holding the settings page's last connection check. */
+    public const KV_CONNECTION = 'connection';
+
+    /** Seconds the connection check is kept. */
+    public const CONNECTION_TTL = 600;
+
     /** fn(): PayPalGateway -- replaces the real gateway in tests. */
     public static ?Closure $factory = null;
 
@@ -63,7 +69,7 @@ final class Plugin
      */
     public static function uninstall(): void
     {
-        foreach (array_keys(SettingsPageRegistry::instance()->fields(self::PAGE)) as $name) {
+        foreach (array_keys(SettingsPageRegistry::getInstance()->fields(self::PAGE)) as $name) {
             osc_delete_preference($name, self::PAGE);
         }
         try {
@@ -100,7 +106,7 @@ final class Plugin
             return null;
         }
         $gateway = self::gateway();
-        ($registry instanceof PaymentGatewayRegistry ? $registry : PaymentGatewayRegistry::instance())->register($gateway);
+        ($registry instanceof PaymentGatewayRegistry ? $registry : PaymentGatewayRegistry::getInstance())->register($gateway);
 
         return $gateway;
     }
@@ -307,22 +313,34 @@ final class Plugin
         }
 
         $event = is_array($payload) ? (string) ($payload['event'] ?? '') : '';
-        $lines = array(
+        error_log('PayPal: job #' . (int) $id . ' (' . $type . ') gave up: ' . $error);
+        self::mailAdmin(__('PayPal: a payment needs checking', 'paypal'), array(
             __('A PayPal payment could not be recorded after several tries.', 'paypal'),
             $event !== '' ? sprintf(__('PayPal event: %s', 'paypal'), $event) : '',
             sprintf(__('Error: %s', 'paypal'), (string) $error),
             sprintf(__('Retry it under Tools > System info > Jobs (job #%d), and check the order in Billing > Orders.', 'paypal'), (int) $id),
-        );
+        ));
+    }
+
+    /**
+     * Mail the site's contact address, one paragraph per line. Empty lines are dropped.
+     *
+     * @param string   $subject
+     * @param string[] $lines
+     *
+     * @return void
+     */
+    public static function mailAdmin(string $subject, array $lines): void
+    {
         $body = '';
         foreach (array_filter($lines) as $line) {
             $body .= '<p>' . osc_esc_html($line) . '</p>';
         }
 
-        error_log('PayPal: job #' . (int) $id . ' (' . $type . ') gave up: ' . $error);
         try {
             osc_sendMail(array(
                 'to'      => osc_contact_email(),
-                'subject' => __('PayPal: a payment needs checking', 'paypal'),
+                'subject' => $subject,
                 'body'    => $body,
             ));
         } catch (Throwable $e) {
@@ -348,6 +366,7 @@ final class Plugin
 
     /**
      * The settings page's connection check: whether the saved credentials and webhook work.
+     * The answer is kept for ten minutes per mode and credentials, so the page stays fast.
      *
      * @return void
      */
@@ -357,12 +376,46 @@ final class Plugin
             ? (self::$factory)()
             : new PayPalGateway(Config::fromSettings(), new CurlClient(5, 15), new CoreOrderStore());
 
+        $key    = $gateway->connectionKey();
+        $cached = null;
+        try {
+            $cached = osc_kv_get(KvTokenCache::GROUP, self::KV_CONNECTION);
+        } catch (Throwable $e) {
+            // Check again below.
+        }
+        if (is_array($cached) && ($cached['key'] ?? null) === $key && is_array($cached['lines'] ?? null)) {
+            $lines = $cached['lines'];
+        } else {
+            $lines = $gateway->diagnose(self::webhookUrl());
+            try {
+                osc_kv_set(KvTokenCache::GROUP, self::KV_CONNECTION, array('key' => $key, 'lines' => $lines), self::CONNECTION_TTL);
+            } catch (Throwable $e) {
+                // Checked again on the next load.
+            }
+        }
+
         $classes = array('ok' => 'text-success', 'warning' => 'text-warning', 'error' => 'text-danger');
         echo '<ul class="list-unstyled">';
-        foreach ($gateway->diagnose(self::webhookUrl()) as [$level, $message]) {
-            echo '<li class="' . osc_esc_html($classes[$level] ?? '') . '">' . osc_esc_html($message) . '</li>';
+        foreach ($lines as $line) {
+            if (is_array($line) && count($line) === 2) {
+                echo '<li class="' . osc_esc_html($classes[$line[0]] ?? '') . '">' . osc_esc_html((string) $line[1]) . '</li>';
+            }
         }
         echo '</ul>';
+    }
+
+    /**
+     * After the settings page saves: drop the kept connection check, so the next load checks again.
+     *
+     * @return void
+     */
+    public static function settingsSaved(): void
+    {
+        try {
+            osc_kv_delete(KvTokenCache::GROUP, self::KV_CONNECTION);
+        } catch (Throwable $e) {
+            // It expires on its own.
+        }
     }
 
     /**

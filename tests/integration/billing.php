@@ -111,7 +111,7 @@ osc_set_preference('sandbox_secret', 'EStoredSecret_aaaaaaaaaaaaaaaaaaaa', Plugi
 osc_reset_preferences();
 pin('a stored secret never reads back through the settings page', '', osc_settings_value(Plugin::PAGE, 'sandbox_secret'));
 pin('but the gateway reads it', 'EStoredSecret_aaaaaaaaaaaaaaaaaaaa', \mindstellar\paypal\Config::fromSettings()->secret);
-$fields = \mindstellar\settings\SettingsPageRegistry::instance()->fields(Plugin::PAGE);
+$fields = \mindstellar\settings\SettingsPageRegistry::getInstance()->fields(Plugin::PAGE);
 check('core runs the client id check', osc_settings_validate($fields['sandbox_client_id'], 'not a client id!') !== null);
 
 $id = \mindstellar\paypal\Config::siteId();
@@ -147,9 +147,9 @@ harness_section('fixtures');
 
 osc_set_preference(Billing::PREF_ENABLED, '1', Billing::PREF_GROUP, 'BOOLEAN');
 osc_reset_preferences();
-PaymentGatewayRegistry::instance()->register($gateway);
-check('offered at checkout for USD', isset(PaymentGatewayRegistry::instance()->available('USD')[PayPalGateway::ID]));
-check('not for a currency PayPal does not take', !isset(PaymentGatewayRegistry::instance()->available('INR')[PayPalGateway::ID]));
+PaymentGatewayRegistry::getInstance()->register($gateway);
+check('offered at checkout for USD', isset(PaymentGatewayRegistry::getInstance()->available('USD')[PayPalGateway::ID]));
+check('not for a currency PayPal does not take', !isset(PaymentGatewayRegistry::getInstance()->available('INR')[PayPalGateway::ID]));
 
 $buyer    = seed_user($admin, 'buyer', 'buyer@example.test');
 $newOrder = static fn (int $amount = 9_990_000, string $currency = 'USD'): Order => OrderStore::create($buyer, PayPalGateway::ID, $amount, $currency, 100);
@@ -181,7 +181,8 @@ pin('that order is closed', Order::STATUS_FAILED, $status($other));
 harness_section('webhook: paid once, replay credits nothing');
 
 $paid = event('PAYMENT.CAPTURE.COMPLETED', pp_capture($order));
-$r    = $webhook($paid);
+pp_lookup($http, $order);
+$r = $webhook($paid);
 check('the route answers 200', !$r->isRetryable());
 pin('the credits land', 100, Wallet::balance($buyer));
 pin('the order is paid', Order::STATUS_PAID, $status($order));
@@ -199,23 +200,56 @@ pin('one ledger row', 1, $ledger($order));
 harness_section('webhook: refused');
 
 $short = $checkout($newOrder());
-$webhook(event('PAYMENT.CAPTURE.COMPLETED', pp_capture($short, array('amount' => array('currency_code' => 'USD', 'value' => '0.01')))));
-pin('a capture for another amount is refused by core', Order::STATUS_PENDING, $status($short));
-$webhook(event('PAYMENT.CAPTURE.COMPLETED', pp_capture($short, array('amount' => array('currency_code' => 'EUR', 'value' => '9.99')))));
+pp_lookup($http, $short, 'COMPLETED', array(pp_capture($short, array('amount' => array('currency_code' => 'USD', 'value' => '0.01')))));
+$webhook(event('PAYMENT.CAPTURE.COMPLETED', pp_capture($short)));
+pin('a capture PayPal reports for another amount is refused by core', Order::STATUS_PENDING, $status($short));
+pp_lookup($http, $short, 'COMPLETED', array(pp_capture($short, array('amount' => array('currency_code' => 'EUR', 'value' => '9.99')))));
+$webhook(event('PAYMENT.CAPTURE.COMPLETED', pp_capture($short)));
 pin('so is another currency', Order::STATUS_PENDING, $status($short));
+pp_lookup($http, $short, 'COMPLETED', array(pp_capture($short, array('status' => 'PENDING'))));
+$webhook(event('PAYMENT.CAPTURE.COMPLETED', pp_capture($short)));
+pin('so is an event PayPal does not back up', Order::STATUS_PENDING, $status($short));
 deliver($http, event('PAYMENT.CAPTURE.COMPLETED', pp_capture($short)), 'FAILURE');
 Billing::handleCallback(PayPalGateway::ID, array('raw' => event('PAYMENT.CAPTURE.COMPLETED', pp_capture($short))));
 pin('so is a delivery PayPal does not vouch for', Order::STATUS_PENDING, $status($short));
 pin('none credited anything', 100, Wallet::balance($buyer));
 
+pp_lookup($http, $short, 'COMPLETED', array(pp_capture($short, array('status' => 'DECLINED'))));
 $webhook(event('PAYMENT.CAPTURE.DENIED', pp_capture($short, array('status' => 'DECLINED'))));
 pin('a denied capture fails the order', Order::STATUS_FAILED, $status($short));
+
+harness_section('a payment for an order closed meanwhile');
+
+pp_lookup($http, $short);
+$http->on('POST', 'v2/payments/captures/' . pp_capture_id($short->getId()) . '/refund', 201, array('id' => '1JU08902781691499', 'status' => 'COMPLETED'));
+$GLOBALS['notified'] = array();
+$gateway2 = new PayPalGateway(fake_config(), $http, $store, $cache, static fn (): array => $GLOBALS['input'], null, null, static function (string $subject, array $lines): void {
+    $GLOBALS['notified'][] = $lines;
+});
+PaymentGatewayRegistry::getInstance()->register($gateway2);
 $webhook(event('PAYMENT.CAPTURE.COMPLETED', pp_capture($short), 'WH-LATE-PAID'));
-pin('and a late paid event cannot reopen it', Order::STATUS_FAILED, $status($short));
+pin('a late paid event cannot reopen a closed order', Order::STATUS_FAILED, $status($short));
+pin('the money is sent back at PayPal', 'closed-' . SITE . '-' . $short->getId(), $http->lastCall()['headers']['PayPal-Request-Id'] ?? null);
+pin('and the admin is told once', 1, count($GLOBALS['notified']));
+pin('the order records it', '1JU08902781691499', OrderStore::find($short->getId())->meta(PayPalGateway::META_CLOSED_REFUND));
+$webhook(event('PAYMENT.CAPTURE.COMPLETED', pp_capture($short), 'WH-LATE-PAID-2'));
+pin('a second delivery refunds and mails nothing more', 1, count($GLOBALS['notified']));
+
+$raced = $checkout($newOrder());
+$http->on('POST', 'v2/checkout/orders/' . pp_order_id($raced->getId()) . '/capture', 201, pp_order($raced));
+$http->on('POST', 'v2/payments/captures/' . pp_capture_id($raced->getId()) . '/refund', 201, array('id' => '1JU08902781691498', 'status' => 'COMPLETED'));
+$http->during['POST v2/checkout/orders/' . pp_order_id($raced->getId()) . '/capture'] = static function () use ($raced): void {
+    OrderStore::settle($raced->getId(), Order::STATUS_FAILED); // the buyer cancels in another tab
+};
+$gateway2->processReturn(pp_order_id($raced->getId()), $raced->getId());
+pin('a capture that finishes after a cancel closed the order is refunded', array(Order::STATUS_FAILED, 2), array($status($raced), count($GLOBALS['notified'])));
+pin('and credits nothing', 100, Wallet::balance($buyer));
+PaymentGatewayRegistry::getInstance()->register($gateway);
 
 harness_section('return page');
 
 $back = $checkout($newOrder());
+pp_lookup($http, $back);
 $http->on('POST', 'v2/checkout/orders/' . pp_order_id($back->getId()) . '/capture', 201, pp_order($back));
 pin('the return page captures and settles at once', Order::STATUS_PAID, Plugin::settleReturn($gateway, $store, $back->getId(), $buyer, pp_order_id($back->getId())));
 pin('credits added', 200, Wallet::balance($buyer));
@@ -249,10 +283,12 @@ $http->on('POST', 'v2/payments/captures/' . pp_capture_id($order->getId()) . '/r
 $r = Billing::refundThroughGateway(OrderStore::find($order->getId()));
 pin('PayPal accepts the refund and core records it', CallbackResult::OUTCOME_REFUNDED, $r->getOutcome());
 pin('core takes the credits back', 200, Wallet::balance($buyer));
+$http->on('GET', 'v2/payments/captures/' . pp_capture_id($order->getId()), 200, pp_capture($order, array('status' => 'REFUNDED')));
 $webhook(event('PAYMENT.CAPTURE.REFUNDED', pp_refund($order), 'WH-REFUND-1'));
 pin('the refund webhook that follows takes nothing more', 200, Wallet::balance($buyer));
 pin('the order stays refunded', Order::STATUS_REFUNDED, $status($order));
 
+$http->on('GET', 'v2/payments/captures/' . pp_capture_id($back->getId()), 200, pp_capture($back, array('status' => 'REFUNDED')));
 $webhook(event('PAYMENT.CAPTURE.REFUNDED', pp_refund($back), 'WH-REFUND-2'));
 pin('a refund made at PayPal is recorded too', Order::STATUS_REFUNDED, $status($back));
 pin('and takes its credits back', 100, Wallet::balance($buyer));

@@ -24,6 +24,15 @@ final class PayPalApi
     public const SANDBOX = 'https://api-m.sandbox.paypal.com/';
     public const LIVE    = 'https://api-m.paypal.com/';
 
+    /** Seconds the webhook check may take, so a slow PayPal cannot hold the callback open. */
+    public const VERIFY_TIMEOUT = 10;
+
+    /** How far a webhook's transmission time may be from now, in seconds. */
+    public const CLOCK_SKEW = 600;
+
+    /** The only hosts PayPal serves its webhook signing certificates from. */
+    public const CERT_HOSTS = array('api.paypal.com', 'api.sandbox.paypal.com');
+
     public function __construct(
         private HttpClient $http,
         private string $base,
@@ -124,6 +133,16 @@ final class PayPalApi
     }
 
     /**
+     * @param string $id Capture id
+     *
+     * @return array<string,mixed>
+     */
+    public function capture(string $id): array
+    {
+        return $this->call('GET', 'v2/payments/captures/' . rawurlencode($id));
+    }
+
+    /**
      * @param string $id WH-...
      *
      * @return array<string,mixed>
@@ -163,7 +182,7 @@ final class PayPalApi
             'transmission_time' => (string) ($headers['transmission-time'] ?? ''),
             'webhook_id'        => $webhookId,
         );
-        if ($webhookId === '' || in_array('', $fields, true)) {
+        if ($webhookId === '' || !self::plausibleHeaders($headers)) {
             return false;
         }
 
@@ -171,7 +190,40 @@ final class PayPalApi
         $json = json_encode($fields, JSON_UNESCAPED_SLASHES);
         $body = substr((string) $json, 0, -1) . ',"webhook_event":' . $rawEvent . '}';
 
-        return ($this->callRaw('POST', 'v1/notifications/verify-webhook-signature', $body)['verification_status'] ?? '') === 'SUCCESS';
+        return ($this->callRaw('POST', 'v1/notifications/verify-webhook-signature', $body, null, self::VERIFY_TIMEOUT)['verification_status'] ?? '') === 'SUCCESS';
+    }
+
+    /**
+     * Whether webhook headers could have come from PayPal: the algorithm PayPal signs with, a
+     * certificate on PayPal's own API host, and a transmission time close to now. Checked
+     * before PayPal is asked, so junk costs no API call.
+     *
+     * @param array<string,string> $headers As for verifyWebhook()
+     * @param int|null             $now     Current time, for tests
+     *
+     * @return bool
+     */
+    public static function plausibleHeaders(array $headers, ?int $now = null): bool
+    {
+        foreach (array('auth-algo', 'cert-url', 'transmission-id', 'transmission-sig', 'transmission-time') as $name) {
+            if (!is_string($headers[$name] ?? null) || $headers[$name] === '') {
+                return false;
+            }
+        }
+        if ($headers['auth-algo'] !== 'SHA256withRSA') {
+            return false;
+        }
+
+        $cert = parse_url($headers['cert-url']);
+        if (!is_array($cert) || ($cert['scheme'] ?? '') !== 'https' || isset($cert['port']) || isset($cert['user'])
+            || !in_array($cert['host'] ?? '', self::CERT_HOSTS, true)
+        ) {
+            return false;
+        }
+
+        $sent = strtotime($headers['transmission-time']);
+
+        return $sent !== false && abs(($now ?? time()) - $sent) <= self::CLOCK_SKEW;
     }
 
     /**
@@ -199,16 +251,17 @@ final class PayPalApi
      * @param string      $path
      * @param string|null $json
      * @param string|null $requestId
+     * @param int|null    $timeout
      *
      * @return array<string,mixed>
      * @throws HttpException on a transport error, an error status or a body that is not JSON
      */
-    private function callRaw(string $method, string $path, ?string $json = null, ?string $requestId = null): array
+    private function callRaw(string $method, string $path, ?string $json = null, ?string $requestId = null, ?int $timeout = null): array
     {
-        $response = $this->send($method, $path, $json, $requestId, $this->token());
+        $response = $this->send($method, $path, $json, $requestId, $this->token(), $timeout);
         if ($response['status'] === 401) {
             $this->cache->delete($this->cacheKey());
-            $response = $this->send($method, $path, $json, $requestId, $this->token(true));
+            $response = $this->send($method, $path, $json, $requestId, $this->token(true), $timeout);
         }
 
         $decoded = json_decode($response['body'], true);
@@ -225,7 +278,7 @@ final class PayPalApi
     /**
      * @return array{status:int,body:string}
      */
-    private function send(string $method, string $path, ?string $json, ?string $requestId, string $token): array
+    private function send(string $method, string $path, ?string $json, ?string $requestId, string $token, ?int $timeout): array
     {
         $headers = array(
             'Authorization' => 'Bearer ' . $token,
@@ -240,7 +293,7 @@ final class PayPalApi
             $headers['PayPal-Request-Id'] = $requestId;
         }
 
-        return $this->http->send($method, $this->base . $path, $headers, $json);
+        return $this->http->send($method, $this->base . $path, $headers, $json, $timeout);
     }
 
     /**

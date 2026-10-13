@@ -5,13 +5,14 @@
 ### New
 - Payments for credit packages through PayPal Checkout (Orders v2); buyers pay on PayPal's pages.
 - The order is captured when the buyer returns, so it shows as paid at once.
-- Webhooks are checked with PayPal before anything is settled; every path goes through core's billing checks.
+- Webhooks are checked locally and then with PayPal; the payment's state is always read from PayPal, never the event body.
+- A payment that lands after its order was closed is refunded at PayPal, and the admin is told.
 - Approved orders the buyer never returned from are captured from the webhook.
 - Denied captures close the order; refunds made at PayPal are recorded.
 - An event the site could not record is queued and retried; the admin is e-mailed if it still fails.
 - A daily check settles pending orders PayPal never reported and closes abandoned ones.
 - Refunds from the admin order screen, and a "View payment" link to the PayPal activity page.
 - Sandbox and live apps with separate credentials; sandbox is offered only to signed-in admins.
-- A connection check on the settings page for the credentials and the webhook.
+- A connection check on the settings page for the credentials and the webhook, kept for ten minutes.
 - Only PayPal's 24 currencies are offered; HUF, JPY and TWD are charged in whole units.
 - Translation template in `languages/paypal.pot`.

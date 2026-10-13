@@ -32,7 +32,8 @@ come back.
    - `PAYMENT.CAPTURE.REFUNDED`
 
 5. Copy the webhook's **ID** into *Webhook ID* and save. The *Connection* line on the
-   settings page says whether the credentials and the webhook work.
+   settings page says whether the credentials and the webhook work. It is checked again
+   after each save, and otherwise every ten minutes.
 
 PayPal shows at checkout once the active mode has a client ID, a secret and a webhook ID,
 and the site's billing currency is one PayPal takes.
@@ -67,6 +68,9 @@ add the same webhook to the live app, paste its ID, then switch *Mode* to *Live*
   it again. If it still fails, the site's contact address gets an e-mail.
 - Once a day, pending PayPal orders over an hour old are checked with PayPal. Orders the
   buyer never approved are closed after a day.
+
+- If a payment lands after its order was closed (the buyer cancelled in another tab, say),
+  the plugin refunds it at PayPal at once and e-mails the site's contact address.
 
 Every path goes through core's billing checks: amount, currency and owner must match, and a
 replayed event credits nothing. The plugin never captures money for an order that is no
