@@ -13,7 +13,7 @@ require __DIR__ . '/lib/bootstrap.php';
 
 use mindstellar\billing\CallbackResult;
 use mindstellar\billing\Order;
-use mindstellar\paypal\Http\HttpException;
+use mindstellar\http\HttpException;
 use mindstellar\paypal\PayPalGateway;
 
 harness_section('isConfigured');

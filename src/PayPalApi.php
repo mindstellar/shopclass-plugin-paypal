@@ -13,8 +13,8 @@ declare(strict_types=1);
 
 namespace mindstellar\paypal;
 
-use mindstellar\paypal\Http\HttpClient;
-use mindstellar\paypal\Http\HttpException;
+use mindstellar\http\HttpClient;
+use mindstellar\http\HttpException;
 
 /**
  * The few PayPal REST calls the gateway makes. Every answer is decoded JSON.
@@ -23,6 +23,9 @@ final class PayPalApi
 {
     public const SANDBOX = 'https://api-m.sandbox.paypal.com/';
     public const LIVE    = 'https://api-m.paypal.com/';
+
+    /** Seconds any call may take. */
+    public const TIMEOUT = 30;
 
     /** Seconds the webhook check may take, so a slow PayPal cannot hold the callback open. */
     public const VERIFY_TIMEOUT = 10;
@@ -68,7 +71,7 @@ final class PayPalApi
             'Authorization' => 'Basic ' . base64_encode($this->clientId . ':' . $this->secret),
             'Content-Type'  => 'application/x-www-form-urlencoded',
             'Accept'        => 'application/json',
-        ), 'grant_type=client_credentials');
+        ), 'grant_type=client_credentials', array('timeout' => self::TIMEOUT));
         $decoded = json_decode($response['body'], true);
 
         if ($response['status'] !== 200 || !is_array($decoded) || !is_string($decoded['access_token'] ?? null) || $decoded['access_token'] === '') {
@@ -293,7 +296,9 @@ final class PayPalApi
             $headers['PayPal-Request-Id'] = $requestId;
         }
 
-        return $this->http->send($method, $this->base . $path, $headers, $json, $timeout);
+        $response = $this->http->send($method, $this->base . $path, $headers, $json, array('timeout' => $timeout ?? self::TIMEOUT));
+
+        return array('status' => $response['status'], 'body' => $response['body']);
     }
 
     /**

@@ -84,6 +84,7 @@ use mindstellar\billing\Order;
 use mindstellar\billing\OrderStore;
 use mindstellar\billing\PaymentGatewayRegistry;
 use mindstellar\billing\Wallet;
+use mindstellar\paypal\Connection;
 use mindstellar\paypal\CoreOrderStore;
 use mindstellar\paypal\KvTokenCache;
 use mindstellar\paypal\PayPalGateway;
@@ -126,16 +127,15 @@ harness_section('the token in core\'s key-value store');
 $http  = new FakeHttp();
 $store = new CoreOrderStore();
 $cache = new KvTokenCache();
-$fresh = static fn (): PayPalGateway => new PayPalGateway(fake_config(), $http, $store, $cache, static fn (): array => $GLOBALS['input'], null, static function (string $id): void {
-    $GLOBALS['queued'][] = $id;
-});
-$GLOBALS['queued'] = array();
-$GLOBALS['input']  = array('', array());
-$gateway           = $fresh();
+// The real gateway, settling through core, with only the request, the queue and mail faked.
+$gateway             = new FakeGateway(fake_config(), $http, $store, $cache);
+$GLOBALS['queued']   = array();
+$GLOBALS['notified'] = array();
+$GLOBALS['input']    = array('', array());
 
 $http->on('GET', 'v1/notifications/webhooks/' . HOOK_ID, 200, array('url' => '', 'event_types' => array()));
-$gateway->diagnose('');
-$fresh()->diagnose('');
+(new Connection(fake_config(), $http, $cache))->check('');
+(new Connection(fake_config(), $http, $cache))->check('');
 pin('the connection check always asks for a fresh token', 2, $http->tokens);
 $http->on('GET', 'v2/checkout/orders/X0000000000', 200, array('id' => 'X0000000000'));
 (new \mindstellar\paypal\PayPalApi($http, \mindstellar\paypal\PayPalApi::SANDBOX, fake_config()->clientId, fake_config()->secret, $cache))->order('X0000000000');
@@ -223,10 +223,6 @@ harness_section('a payment for an order closed meanwhile');
 pp_lookup($http, $short);
 $http->on('POST', 'v2/payments/captures/' . pp_capture_id($short->getId()) . '/refund', 201, array('id' => '1JU08902781691499', 'status' => 'COMPLETED'));
 $GLOBALS['notified'] = array();
-$gateway2 = new PayPalGateway(fake_config(), $http, $store, $cache, static fn (): array => $GLOBALS['input'], null, null, static function (string $subject, array $lines): void {
-    $GLOBALS['notified'][] = $lines;
-});
-PaymentGatewayRegistry::getInstance()->register($gateway2);
 $webhook(event('PAYMENT.CAPTURE.COMPLETED', pp_capture($short), 'WH-LATE-PAID'));
 pin('a late paid event cannot reopen a closed order', Order::STATUS_FAILED, $status($short));
 pin('the money is sent back at PayPal', 'closed-' . SITE . '-' . $short->getId(), $http->lastCall()['headers']['PayPal-Request-Id'] ?? null);
@@ -241,10 +237,9 @@ $http->on('POST', 'v2/payments/captures/' . pp_capture_id($raced->getId()) . '/r
 $http->during['POST v2/checkout/orders/' . pp_order_id($raced->getId()) . '/capture'] = static function () use ($raced): void {
     OrderStore::settle($raced->getId(), Order::STATUS_FAILED); // the buyer cancels in another tab
 };
-$gateway2->processReturn(pp_order_id($raced->getId()), $raced->getId());
+$gateway->processReturn(pp_order_id($raced->getId()), $raced->getId());
 pin('a capture that finishes after a cancel closed the order is refunded', array(Order::STATUS_FAILED, 2), array($status($raced), count($GLOBALS['notified'])));
 pin('and credits nothing', 100, Wallet::balance($buyer));
-PaymentGatewayRegistry::getInstance()->register($gateway);
 
 harness_section('return page');
 

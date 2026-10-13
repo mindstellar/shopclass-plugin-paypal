@@ -11,7 +11,7 @@
 
 require __DIR__ . '/lib/bootstrap.php';
 
-use mindstellar\paypal\Http\HttpException;
+use mindstellar\http\HttpException;
 use mindstellar\paypal\PayPalApi;
 
 $client = 'AYSq3RDGsmBLJE-otTkBtM-jBRd1TCQwFf9RGfwddNXWz0uFU9ztymylOhRS';
@@ -84,6 +84,14 @@ try {
 }
 pin('a second 401 is an error, not a loop', 401, $code);
 pin('after one retry: two calls and one token', 3, count($http->requests) - $count);
+$message = '';
+try {
+    $api->order('X');
+} catch (HttpException $e) {
+    $message = $e->getMessage();
+}
+check('the error names no token and no secret', $message !== '' && !str_contains($message, 'A21AA') && !str_contains($message, $secret) && !str_contains($message, base64_encode($client . ':' . $secret)));
+pin('every call has a timeout', array(PayPalApi::TIMEOUT), array_values(array_unique(array_column($http->requests, 'timeout'))));
 
 harness_section('errors');
 

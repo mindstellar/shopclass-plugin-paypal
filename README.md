@@ -12,6 +12,8 @@ come back.
 - PHP 8.0 or later, with the curl extension
 - Cron running, for retries and the daily check of pending orders
 
+It works on shared hosting: the daily check and webhook retries run on cron or core's auto-cron.
+
 ## Setup
 
 1. Install and activate the plugin, then open **Plugins → PayPal Payment**.
@@ -88,6 +90,11 @@ account is recorded the same way. Partial refunds change nothing on the site.
 Each site stores the PayPal order it created and ignores events for any other, and invoice
 ids carry a per-site prefix, so several sites can share an account. Give each site its own
 webhook.
+
+## Uninstall
+
+Uninstalling removes the plugin's settings, the saved secrets and the cached PayPal token.
+The site id is kept, so orders still in flight settle after a reinstall.
 
 ## Translations
 

@@ -11,9 +11,9 @@
 
 use mindstellar\billing\CallbackResult;
 use mindstellar\billing\Order;
+use mindstellar\http\HttpClient;
+use mindstellar\http\HttpException;
 use mindstellar\paypal\Config;
-use mindstellar\paypal\Http\HttpClient;
-use mindstellar\paypal\Http\HttpException;
 use mindstellar\paypal\OrderStore;
 use mindstellar\paypal\PayPalGateway;
 use mindstellar\paypal\TokenCache;
@@ -55,9 +55,9 @@ final class FakeHttp implements HttpClient
         $this->routes[$method . ' ' . $path] = new HttpException('PayPal could not be reached: timeout');
     }
 
-    public function send(string $method, string $url, array $headers, ?string $body = null, ?int $timeout = null): array
+    public function send(string $method, string $url, array $headers = [], ?string $body = null, array $options = []): array
     {
-        $this->requests[] = array('method' => $method, 'url' => $url, 'headers' => $headers, 'body' => $body, 'timeout' => $timeout);
+        $this->requests[] = array('method' => $method, 'url' => $url, 'headers' => $headers, 'body' => $body, 'timeout' => $options['timeout'] ?? null);
         $path = (string) preg_replace('#^https://api-m\.(sandbox\.)?paypal\.com/#', '', $url);
         $key  = $method . ' ' . $path;
         if (isset($this->during[$key])) {
@@ -65,7 +65,7 @@ final class FakeHttp implements HttpClient
         }
 
         if (!empty($this->once[$key])) {
-            return array_shift($this->once[$key]);
+            return array_shift($this->once[$key]) + array('headers' => array());
         }
         $answer = $this->routes[$key] ?? array('status' => 404, 'body' => '{"name":"RESOURCE_NOT_FOUND","details":[{"issue":"INVALID_RESOURCE_ID"}]}');
         if ($answer instanceof HttpException) {
@@ -74,10 +74,10 @@ final class FakeHttp implements HttpClient
         if ($key === 'POST v1/oauth2/token' && $answer['body'] === '') {
             $this->tokens++;
 
-            return array('status' => 200, 'body' => json_encode(array('access_token' => 'A21AA' . $this->tokens, 'token_type' => 'Bearer', 'expires_in' => 32400)));
+            return array('status' => 200, 'headers' => array(), 'body' => json_encode(array('access_token' => 'A21AA' . $this->tokens, 'token_type' => 'Bearer', 'expires_in' => 32400)));
         }
 
-        return $answer;
+        return $answer + array('headers' => array());
     }
 
     /** Requests other than token requests. */
@@ -261,36 +261,57 @@ function fake_config(array $over = array()): Config
 }
 
 /**
- * A gateway on fakes. $GLOBALS['settled'] records what reached the settle step, and
- * $GLOBALS['queued'] what was queued.
+ * The gateway with its four outside seams replaced: the webhook input comes from
+ * $GLOBALS['input'], queued ids go to $GLOBALS['queued'], mails to $GLOBALS['notified'],
+ * and settling runs $onSettle, or core's real Billing::handleCallback() when it is null.
  */
-function fake_gateway(FakeHttp $http, MemoryOrders $orders, array $config = array(), ?Closure $settle = null, ?MemoryCache $cache = null): PayPalGateway
+class FakeGateway extends PayPalGateway
+{
+    public ?Closure $onSettle = null;
+
+    public bool $queueDown = false;
+
+    protected function input(): array
+    {
+        return $GLOBALS['input'];
+    }
+
+    protected function settle(array $request): CallbackResult
+    {
+        return $this->onSettle !== null ? ($this->onSettle)($request) : parent::settle($request);
+    }
+
+    protected function queue(string $eventId): void
+    {
+        if ($this->queueDown) {
+            throw new RuntimeException('queue down');
+        }
+        $GLOBALS['queued'][] = $eventId;
+    }
+
+    protected function notify(string $subject, array $lines): void
+    {
+        $GLOBALS['notified'][] = array($subject, $lines);
+    }
+}
+
+/**
+ * A gateway on fakes. $GLOBALS['settled'] records what reached the settle step.
+ */
+function fake_gateway(FakeHttp $http, MemoryOrders $orders, array $config = array(), ?Closure $settle = null, ?MemoryCache $cache = null): FakeGateway
 {
     $GLOBALS['settled']  = array();
     $GLOBALS['queued']   = array();
     $GLOBALS['notified'] = array();
     $GLOBALS['input']    = array('', array());
 
-    $gateway = null;
-    $gateway = new PayPalGateway(
-        fake_config($config),
-        $http,
-        $orders,
-        $cache ?? new MemoryCache(),
-        static fn (): array => $GLOBALS['input'],
-        $settle ?? static function (array $request) use (&$gateway): CallbackResult {
-            $result               = $gateway->handleCallback($request);
-            $GLOBALS['settled'][] = $result;
+    $gateway           = new FakeGateway(fake_config($config), $http, $orders, $cache ?? new MemoryCache());
+    $gateway->onSettle = $settle ?? static function (array $request) use ($gateway): CallbackResult {
+        $result               = $gateway->handleCallback($request);
+        $GLOBALS['settled'][] = $result;
 
-            return $result;
-        },
-        static function (string $id): void {
-            $GLOBALS['queued'][] = $id;
-        },
-        static function (string $subject, array $lines): void {
-            $GLOBALS['notified'][] = array($subject, $lines);
-        }
-    );
+        return $result;
+    };
 
     return $gateway;
 }
@@ -299,7 +320,7 @@ function fake_gateway(FakeHttp $http, MemoryOrders $orders, array $config = arra
  * A gateway whose settle step writes the outcome to the in-memory orders, as core would:
  * paid and failed only from pending, refunded only from paid.
  */
-function settling_gateway(FakeHttp $http, MemoryOrders $orders, array $config = array()): PayPalGateway
+function settling_gateway(FakeHttp $http, MemoryOrders $orders, array $config = array()): FakeGateway
 {
     $gateway = null;
     $gateway = fake_gateway($http, $orders, $config, static function (array $request) use (&$gateway, $orders): CallbackResult {

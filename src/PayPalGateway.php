@@ -13,22 +13,22 @@ declare(strict_types=1);
 
 namespace mindstellar\paypal;
 
-use Closure;
 use mindstellar\billing\Billing;
 use mindstellar\billing\CallbackResult;
 use mindstellar\billing\CheckoutIntent;
 use mindstellar\billing\DashboardLinkGateway;
 use mindstellar\billing\Order;
 use mindstellar\billing\RefundableGateway;
-use mindstellar\paypal\Http\HttpClient;
-use mindstellar\paypal\Http\HttpException;
+use mindstellar\http\HttpClient;
+use mindstellar\http\HttpException;
 use Throwable;
 
 /**
  * PayPal Checkout (Orders v2) as a Shopclass payment gateway. Orders settle only from verified
  * webhooks or data fetched from PayPal, always through Billing::handleCallback() so core's checks apply.
+ * Tests extend it to replace the four protected methods that touch the request, core and mail.
  */
-final class PayPalGateway implements RefundableGateway, DashboardLinkGateway
+class PayPalGateway implements RefundableGateway, DashboardLinkGateway
 {
     /** Gateway id stored on every order. */
     public const ID = 'paypal';
@@ -61,44 +61,13 @@ final class PayPalGateway implements RefundableGateway, DashboardLinkGateway
 
     private PayPalApi $api;
 
-    /** fn(): array{0:string,1:array<string,string>} -- the raw body and the PAYPAL-* headers. */
-    private Closure $input;
-
-    /** fn(array $request): CallbackResult -- settle a verified request through core. */
-    private Closure $settle;
-
-    /** fn(string $eventId): void -- queue an event for a later retry. */
-    private Closure $queue;
-
-    /** fn(string $subject, string[] $lines): void -- tell the admin. */
-    private Closure $notify;
-
     public function __construct(
         private Config $config,
         HttpClient $http,
         private OrderStore $orders,
-        ?TokenCache $cache = null,
-        ?Closure $input = null,
-        ?Closure $settle = null,
-        ?Closure $queue = null,
-        ?Closure $notify = null
+        ?TokenCache $cache = null
     ) {
-        $this->api    = new PayPalApi($http, $config->apiBase(), $config->clientId, $config->secret, $cache ?? new KvTokenCache());
-        $this->input  = $input ?? static function (): array {
-            $headers = array();
-            foreach (array('auth-algo', 'cert-url', 'transmission-id', 'transmission-sig', 'transmission-time') as $name) {
-                $headers[$name] = (string) ($_SERVER['HTTP_PAYPAL_' . strtoupper(str_replace('-', '_', $name))] ?? '');
-            }
-
-            return array((string) file_get_contents('php://input'), $headers);
-        };
-        $this->settle = $settle ?? static fn (array $request): CallbackResult => Billing::handleCallback(self::ID, $request);
-        $this->queue  = $queue ?? static function (string $eventId): void {
-            osc_job_enqueue(Plugin::JOB_EVENT, array('event' => $eventId), array('unique_key' => $eventId));
-        };
-        $this->notify = $notify ?? static function (string $subject, array $lines): void {
-            Plugin::mailAdmin($subject, $lines);
-        };
+        $this->api = new PayPalApi($http, $config->apiBase(), $config->clientId, $config->secret, $cache ?? new KvTokenCache());
     }
 
     public function getId(): string
@@ -310,7 +279,7 @@ final class PayPalGateway implements RefundableGateway, DashboardLinkGateway
             return CallbackResult::ignored('malformed event id');
         }
 
-        return ($this->settle)(array(self::TRUSTED => Verified::event($this->api->event($eventId))));
+        return $this->settle(array(self::TRUSTED => Verified::event($this->api->event($eventId))));
     }
 
     /**
@@ -327,7 +296,7 @@ final class PayPalGateway implements RefundableGateway, DashboardLinkGateway
             return CallbackResult::ignored('malformed PayPal order id');
         }
 
-        return ($this->settle)(array(self::TRUSTED => Verified::capture($paypalOrder, $orderId)));
+        return $this->settle(array(self::TRUSTED => Verified::capture($paypalOrder, $orderId)));
     }
 
     /**
@@ -345,7 +314,7 @@ final class PayPalGateway implements RefundableGateway, DashboardLinkGateway
             return CallbackResult::ignored('malformed PayPal order id');
         }
 
-        return ($this->settle)(array(self::TRUSTED => Verified::check($paypalOrder, $orderId, $closeUnpaid)));
+        return $this->settle(array(self::TRUSTED => Verified::check($paypalOrder, $orderId, $closeUnpaid)));
     }
 
     /**
@@ -384,78 +353,13 @@ final class PayPalGateway implements RefundableGateway, DashboardLinkGateway
     }
 
     /**
-     * Names the active mode and credentials, without revealing them, for the kept connection check.
-     *
-     * @return string
-     */
-    public function connectionKey(): string
-    {
-        return hash('sha256', implode("\n", array($this->config->mode, $this->config->clientId, $this->config->secret, $this->config->webhookId)));
-    }
-
-    /**
-     * For the settings page: whether the credentials work and the webhook is set up.
-     *
-     * @param string $webhookUrl This site's webhook URL
-     *
-     * @return array<int,array{0:string,1:string}> level ('ok', 'warning' or 'error') and message
-     */
-    public function diagnose(string $webhookUrl): array
-    {
-        if ($this->config->clientId === '' || $this->config->secret === '') {
-            return array(array('warning', __('Add the client id and secret for this mode, then save.', 'paypal')));
-        }
-
-        try {
-            $this->api->token(true);
-        } catch (HttpException $e) {
-            return array(array('error', sprintf(__('PayPal refused the client id and secret: %s', 'paypal'), self::short($e->getMessage()))));
-        }
-        $lines = array(array('ok', $this->config->live()
-            ? __('Connected to PayPal (live).', 'paypal')
-            : __('Connected to the PayPal sandbox.', 'paypal')));
-
-        if ($this->config->webhookId === '') {
-            $lines[] = array('warning', __('No webhook id is set, so PayPal is not offered at checkout yet.', 'paypal'));
-
-            return $lines;
-        }
-
-        try {
-            $hook = $this->api->webhook($this->config->webhookId);
-        } catch (HttpException $e) {
-            $lines[] = array('error', __('PayPal does not know this webhook id. Copy it from the same app as the client id.', 'paypal'));
-
-            return $lines;
-        }
-
-        $url = (string) ($hook['url'] ?? '');
-        if ($url !== $webhookUrl) {
-            $lines[] = array('warning', sprintf(__('The webhook points to %s, not to this site.', 'paypal'), $url));
-        }
-        $names = array();
-        foreach ((array) ($hook['event_types'] ?? array()) as $type) {
-            $names[] = is_array($type) ? (string) ($type['name'] ?? '') : '';
-        }
-        $missing = in_array('*', $names, true) ? array() : array_diff(self::EVENTS, $names);
-        if ($missing !== array()) {
-            $lines[] = array('warning', sprintf(__('The webhook is missing these events: %s', 'paypal'), implode(', ', $missing)));
-        }
-        if (count($lines) === 1) {
-            $lines[] = array('ok', __('The webhook is set up.', 'paypal'));
-        }
-
-        return $lines;
-    }
-
-    /**
      * The webhook: check the headers here and the event with PayPal, then settle it.
      *
      * @return CallbackResult
      */
     private function webhook(): CallbackResult
     {
-        [$body, $headers] = ($this->input)();
+        [$body, $headers] = $this->input();
         $event            = json_decode($body, true);
         if (!is_array($event) || !is_string($event['id'] ?? null) || !self::isEventId($event['id']) || !is_string($event['event_type'] ?? null)) {
             return CallbackResult::ignored('malformed event');
@@ -478,10 +382,10 @@ final class PayPalGateway implements RefundableGateway, DashboardLinkGateway
         }
 
         try {
-            $result = ($this->settle)(array(self::TRUSTED => Verified::event($event)));
+            $result = $this->settle(array(self::TRUSTED => Verified::event($event)));
         } catch (Throwable $e) {
             try {
-                ($this->queue)($event['id']);
+                $this->queue($event['id']);
             } catch (Throwable $ignored) {
                 // The queue is down too. PayPal still retries the event.
             }
@@ -769,7 +673,7 @@ final class PayPalGateway implements RefundableGateway, DashboardLinkGateway
     }
 
     /**
-     * Mail the admin. A mail that fails is logged, never fatal.
+     * Mail the admin, and log the same lines.
      *
      * @param string   $subject
      * @param string[] $lines
@@ -779,11 +683,59 @@ final class PayPalGateway implements RefundableGateway, DashboardLinkGateway
     private function tell(string $subject, array $lines): void
     {
         error_log('PayPal: ' . implode(' ', $lines));
-        try {
-            ($this->notify)($subject, $lines);
-        } catch (Throwable $e) {
-            error_log('PayPal: could not mail the admin: ' . $e->getMessage());
+        $this->notify($subject, $lines);
+    }
+
+    /**
+     * The raw webhook body and its PAYPAL-* transmission headers.
+     *
+     * @return array{0:string,1:array<string,string>}
+     */
+    protected function input(): array
+    {
+        $headers = array();
+        foreach (array('auth-algo', 'cert-url', 'transmission-id', 'transmission-sig', 'transmission-time') as $name) {
+            $headers[$name] = (string) ($_SERVER['HTTP_PAYPAL_' . strtoupper(str_replace('-', '_', $name))] ?? '');
         }
+
+        return array((string) file_get_contents('php://input'), $headers);
+    }
+
+    /**
+     * Settle a verified request through core, so its checks on money, owner and replays apply.
+     *
+     * @param array<string,mixed> $request
+     *
+     * @return CallbackResult
+     */
+    protected function settle(array $request): CallbackResult
+    {
+        return Billing::handleCallback(self::ID, $request);
+    }
+
+    /**
+     * Queue an event for a later retry. Only its id is kept; the job fetches it again from PayPal.
+     *
+     * @param string $eventId
+     *
+     * @return void
+     */
+    protected function queue(string $eventId): void
+    {
+        osc_job_enqueue(Plugin::JOB_EVENT, array('event' => $eventId), array('unique_key' => $eventId));
+    }
+
+    /**
+     * E-mail the site's contact address.
+     *
+     * @param string   $subject
+     * @param string[] $lines
+     *
+     * @return void
+     */
+    protected function notify(string $subject, array $lines): void
+    {
+        osc_mail_admin($subject, $lines);
     }
 
     /**

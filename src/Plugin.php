@@ -16,8 +16,8 @@ namespace mindstellar\paypal;
 use Closure;
 use mindstellar\billing\Order;
 use mindstellar\billing\PaymentGatewayRegistry;
+use mindstellar\http\CurlHttpClient;
 use mindstellar\job\Job;
-use mindstellar\paypal\Http\CurlClient;
 use mindstellar\settings\SettingsPageRegistry;
 use Params;
 use RuntimeException;
@@ -90,7 +90,7 @@ final class Plugin
             return (self::$factory)();
         }
 
-        return new PayPalGateway(Config::fromSettings(), new CurlClient(), new CoreOrderStore());
+        return new PayPalGateway(Config::fromSettings(), new CurlHttpClient(), new CoreOrderStore());
     }
 
     /**
@@ -314,38 +314,12 @@ final class Plugin
 
         $event = is_array($payload) ? (string) ($payload['event'] ?? '') : '';
         error_log('PayPal: job #' . (int) $id . ' (' . $type . ') gave up: ' . $error);
-        self::mailAdmin(__('PayPal: a payment needs checking', 'paypal'), array(
+        osc_mail_admin(__('PayPal: a payment needs checking', 'paypal'), array(
             __('A PayPal payment could not be recorded after several tries.', 'paypal'),
             $event !== '' ? sprintf(__('PayPal event: %s', 'paypal'), $event) : '',
             sprintf(__('Error: %s', 'paypal'), (string) $error),
             sprintf(__('Retry it under Tools > System info > Jobs (job #%d), and check the order in Billing > Orders.', 'paypal'), (int) $id),
         ));
-    }
-
-    /**
-     * Mail the site's contact address, one paragraph per line. Empty lines are dropped.
-     *
-     * @param string   $subject
-     * @param string[] $lines
-     *
-     * @return void
-     */
-    public static function mailAdmin(string $subject, array $lines): void
-    {
-        $body = '';
-        foreach (array_filter($lines) as $line) {
-            $body .= '<p>' . osc_esc_html($line) . '</p>';
-        }
-
-        try {
-            osc_sendMail(array(
-                'to'      => osc_contact_email(),
-                'subject' => $subject,
-                'body'    => $body,
-            ));
-        } catch (Throwable $e) {
-            error_log('PayPal: could not mail the admin: ' . $e->getMessage());
-        }
     }
 
     /**
@@ -365,18 +339,26 @@ final class Plugin
     }
 
     /**
-     * The settings page's connection check: whether the saved credentials and webhook work.
-     * The answer is kept for ten minutes per mode and credentials, so the page stays fast.
+     * The settings page's connection check.
      *
      * @return void
      */
     public static function renderConnection(): void
     {
-        $gateway = self::$factory !== null
-            ? (self::$factory)()
-            : new PayPalGateway(Config::fromSettings(), new CurlClient(5, 15), new CoreOrderStore());
+        echo self::connectionHtml(Connection::fromSettings());
+    }
 
-        $key    = $gateway->connectionKey();
+    /**
+     * The connection check as a list. The answer is kept for ten minutes per mode and
+     * credentials, so the settings page does not wait on PayPal at every load.
+     *
+     * @param Connection $connection
+     *
+     * @return string
+     */
+    public static function connectionHtml(Connection $connection): string
+    {
+        $key    = $connection->key();
         $cached = null;
         try {
             $cached = osc_kv_get(KvTokenCache::GROUP, self::KV_CONNECTION);
@@ -386,7 +368,7 @@ final class Plugin
         if (is_array($cached) && ($cached['key'] ?? null) === $key && is_array($cached['lines'] ?? null)) {
             $lines = $cached['lines'];
         } else {
-            $lines = $gateway->diagnose(self::webhookUrl());
+            $lines = $connection->check(self::webhookUrl());
             try {
                 osc_kv_set(KvTokenCache::GROUP, self::KV_CONNECTION, array('key' => $key, 'lines' => $lines), self::CONNECTION_TTL);
             } catch (Throwable $e) {
@@ -395,13 +377,14 @@ final class Plugin
         }
 
         $classes = array('ok' => 'text-success', 'warning' => 'text-warning', 'error' => 'text-danger');
-        echo '<ul class="list-unstyled">';
+        $html    = '<ul class="list-unstyled">';
         foreach ($lines as $line) {
             if (is_array($line) && count($line) === 2) {
-                echo '<li class="' . osc_esc_html($classes[$line[0]] ?? '') . '">' . osc_esc_html((string) $line[1]) . '</li>';
+                $html .= '<li class="' . osc_esc_html($classes[$line[0]] ?? '') . '">' . osc_esc_html((string) $line[1]) . '</li>';
             }
         }
-        echo '</ul>';
+
+        return $html . '</ul>';
     }
 
     /**

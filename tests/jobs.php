@@ -13,7 +13,7 @@ require __DIR__ . '/lib/bootstrap.php';
 
 use mindstellar\billing\CallbackResult;
 use mindstellar\billing\Order;
-use mindstellar\paypal\Http\HttpException;
+use mindstellar\http\HttpException;
 
 $http    = new FakeHttp();
 $orders  = new MemoryOrders();

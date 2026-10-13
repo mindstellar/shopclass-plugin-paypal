@@ -15,6 +15,7 @@ require __DIR__ . '/lib/bootstrap.php';
 use mindstellar\billing\Order;
 use mindstellar\billing\PaymentGatewayRegistry;
 use mindstellar\job\Job;
+use mindstellar\paypal\Connection;
 use mindstellar\paypal\PayPalGateway;
 use mindstellar\paypal\Plugin;
 
@@ -35,13 +36,11 @@ function osc_job_describe($type, $name, $detail = null)
 function osc_run_hook($hook, ...$args)
 {
 }
-function osc_sendMail($params)
+function osc_mail_admin(string $subject, array $lines): bool
 {
-    $GLOBALS['mails'][] = $params;
-}
-function osc_contact_email()
-{
-    return 'admin@shop.test';
+    $GLOBALS['mails'][] = array('subject' => $subject, 'lines' => $lines);
+
+    return true;
 }
 function osc_esc_html($s)
 {
@@ -169,10 +168,10 @@ harness_section('when a job gives up');
 Plugin::jobGaveUp('storage.upload', array(), 'x', 1);
 pin('another plugin\'s job sends nothing', array(), $GLOBALS['mails']);
 Plugin::jobGaveUp(Plugin::JOB_EVENT, array('event' => 'WH-JOB-9'), 'PayPal answered 500', 42);
-pin('a PayPal job mails the site\'s contact address', 'admin@shop.test', $GLOBALS['mails'][0]['to'] ?? null);
-check('naming the event, the error and the job', str_contains($GLOBALS['mails'][0]['body'], 'WH-JOB-9') && str_contains($GLOBALS['mails'][0]['body'], 'PayPal answered 500') && str_contains($GLOBALS['mails'][0]['body'], 'job #42'));
-Plugin::jobGaveUp(Plugin::JOB_EVENT, array('event' => '<script>'), '<b>', 43);
-check('escaped', !str_contains($GLOBALS['mails'][1]['body'], '<script>') && !str_contains($GLOBALS['mails'][1]['body'], '<b>'));
+pin('a PayPal job mails the admin through core', 'PayPal: a payment needs checking', $GLOBALS['mails'][0]['subject'] ?? null);
+$body = implode(' ', $GLOBALS['mails'][0]['lines'] ?? array());
+check('naming the event, the error and the job', str_contains($body, 'WH-JOB-9') && str_contains($body, 'PayPal answered 500') && str_contains($body, 'job #42'));
+pin('as plain lines, no markup; core escapes them', array(), array_filter($GLOBALS['mails'][0]['lines'], static fn ($l) => $l === '' || str_contains($l, '<')));
 
 harness_section('the connection check');
 
@@ -180,36 +179,30 @@ $http = new FakeHttp();
 $url  = Plugin::webhookUrl();
 pin('the webhook URL is core\'s callback route for this gateway', 'https://shop.test/index.php?page=billing&action=callback&gateway=paypal', $url);
 $http->on('GET', 'v1/notifications/webhooks/' . HOOK_ID, 200, array('id' => HOOK_ID, 'url' => $url, 'event_types' => array_map(static fn ($n) => array('name' => $n), PayPalGateway::EVENTS)));
-$lines = fake_gateway($http, new MemoryOrders())->diagnose($url);
+$lines = (new Connection(fake_config(), $http, new MemoryCache()))->check($url);
 pin('all good', array(array('ok', 'Connected to the PayPal sandbox.'), array('ok', 'The webhook is set up.')), $lines);
 
 $http->on('GET', 'v1/notifications/webhooks/' . HOOK_ID, 200, array('id' => HOOK_ID, 'url' => 'https://old.test/hook', 'event_types' => array(array('name' => 'PAYMENT.CAPTURE.COMPLETED'))));
-$lines = fake_gateway($http, new MemoryOrders())->diagnose($url);
+$lines = (new Connection(fake_config(), $http, new MemoryCache()))->check($url);
 pin('a webhook for another URL, missing events, is reported', array('ok', 'warning', 'warning'), array_column($lines, 0));
 check('naming the missing events', str_contains($lines[2][1], 'CHECKOUT.ORDER.APPROVED, PAYMENT.CAPTURE.DENIED, PAYMENT.CAPTURE.REFUNDED'));
 $http->on('GET', 'v1/notifications/webhooks/' . HOOK_ID, 200, array('id' => HOOK_ID, 'url' => $url, 'event_types' => array(array('name' => '*'))));
-pin('all events ("*") is enough', 'The webhook is set up.', fake_gateway($http, new MemoryOrders())->diagnose($url)[1][1]);
+pin('all events ("*") is enough', 'The webhook is set up.', (new Connection(fake_config(), $http, new MemoryCache()))->check($url)[1][1]);
 
 $http->on('GET', 'v1/notifications/webhooks/' . HOOK_ID, 404, array('name' => 'INVALID_RESOURCE_ID'));
-pin('an unknown webhook id is an error', 'error', fake_gateway($http, new MemoryOrders())->diagnose($url)[1][0]);
+pin('an unknown webhook id is an error', 'error', (new Connection(fake_config(), $http, new MemoryCache()))->check($url)[1][0]);
 
 $http->on('POST', 'v1/oauth2/token', 401, array('error' => 'invalid_client', 'error_description' => 'Client Authentication failed'));
-$lines = fake_gateway($http, new MemoryOrders())->diagnose($url);
+$lines = (new Connection(fake_config(), $http, new MemoryCache()))->check($url);
 pin('bad credentials are one error line', array('error'), array_column($lines, 0));
 check('that never shows the secret', !str_contains($lines[0][1], fake_config()->secret));
 
-pin('no credentials: one hint, and PayPal is not asked', array('warning'), array_column(fake_gateway(new FakeHttp(), new MemoryOrders(), array('secret' => ''))->diagnose($url), 0));
+pin('no credentials: one hint, and PayPal is not asked', array('warning'), array_column((new Connection(fake_config(array('secret' => '')), new FakeHttp(), new MemoryCache()))->check($url), 0));
 
 $http   = new FakeHttp();
 $config = array('webhook' => '');
-Plugin::$factory = static function () use ($http, &$config): PayPalGateway {
-    return fake_gateway($http, new MemoryOrders(), $config);
-};
-$render = static function (): string {
-    ob_start();
-    Plugin::renderConnection();
-
-    return (string) ob_get_clean();
+$render = static function () use ($http, &$config): string {
+    return Plugin::connectionHtml(new Connection(fake_config($config), $http, new MemoryCache()));
 };
 $html = $render();
 check('the settings page renders the check as a list', str_contains($html, '<li class="text-success">Connected to the PayPal sandbox.</li>') && str_contains($html, 'text-warning'));
@@ -235,7 +228,5 @@ pin('new credentials check again even without a save', $count + 2, count($http->
 $config = array('webhook' => '', 'mode' => 'live');
 $render();
 pin('so does the other mode', $count + 3, count($http->requests));
-
-Plugin::$factory = null;
 
 exit(harness_result());

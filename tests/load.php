@@ -37,6 +37,11 @@ function osc_add_route_hook($id, $regexp, $url)
     $GLOBALS['__routes'][$id] = array($regexp, $url);
 }
 
+function osc_mail_admin(string $subject, array $lines): bool
+{
+    return true;
+}
+
 require __DIR__ . '/../index.php';
 
 use mindstellar\paypal\Plugin;
@@ -57,7 +62,7 @@ pin('jobs, the daily check and the give-up mail', array(
     array(array(Plugin::class, 'daily')),
     array(array(Plugin::class, 'jobGaveUp')),
 ), array($GLOBALS['__hooks']['register_jobs'] ?? null, $GLOBALS['__hooks']['cron_daily'] ?? null, $GLOBALS['__hooks']['job_gave_up'] ?? null));
-pin('the sandbox notice', array(array(Plugin::class, 'adminNotice')), $GLOBALS['__hooks']['admin_page_header'] ?? null);
+pin('the sandbox notice, and no old-core notice', array(array(Plugin::class, 'adminNotice')), $GLOBALS['__hooks']['admin_page_header'] ?? null);
 check('job types are namespaced', preg_match('/^[a-z0-9_]+\.[a-z0-9_.]+$/', Plugin::JOB_EVENT) && preg_match('/^[a-z0-9_]+\.[a-z0-9_.]+$/', Plugin::JOB_RECONCILE));
 
 harness_section('the settings page');

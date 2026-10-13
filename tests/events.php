@@ -132,7 +132,7 @@ $http->down('POST', 'v2/payments/captures/' . pp_capture_id($down->getId()) . '/
 $threw = false;
 try {
     $gateway->handleCallback(array(PayPalGateway::TRUSTED => Verified::event(event('PAYMENT.CAPTURE.COMPLETED', pp_capture($down)))));
-} catch (\mindstellar\paypal\Http\HttpException $e) {
+} catch (\mindstellar\http\HttpException $e) {
     $threw = true;
 }
 check('PayPal down for the refund throws, so the event is queued and retried', $threw);
@@ -235,11 +235,10 @@ $r = $broken->handleCallback(array());
 check('PayPal is told to retry', $r->isRetryable());
 pin('and the event id alone is queued', array($paidEvt['id']), $GLOBALS['queued']);
 
-$noQueue = new PayPalGateway(fake_config(), $http, $orders, new MemoryCache(), static fn () => $GLOBALS['input'], static function (array $r): CallbackResult {
+$noQueue = fake_gateway($http, $orders, array(), static function (array $r): CallbackResult {
     throw new RuntimeException('db down');
-}, static function (string $id): void {
-    throw new RuntimeException('queue down too');
 });
+$noQueue->queueDown = true;
 deliver($http, $paidEvt);
 check('even when the queue is down too, PayPal is told to retry', $noQueue->handleCallback(array())->isRetryable());
 
