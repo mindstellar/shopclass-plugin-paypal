@@ -1,0 +1,68 @@
+# Publishes a release when a v* tag is pushed.
+#
+# The zip's shape is the one the market installer expects and the catalog builder
+# reads: a single top-level directory named for the slug, honouring .distignore, with
+# a sha256 sidecar. The version in the filename comes from index.php's own Version:
+# header, never from the tag — so what ships cannot disagree with what the plugin
+# reports about itself. A tag naming a different version fails the build rather than
+# publishing a zip that lies.
+name: release
+
+on:
+  push:
+    tags: ['v*']
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Check the tag matches the plugin's own version
+        id: version
+        run: |
+          version="$(grep -oP '(?i)^[ \t*/]*Version:\s*\K[^\r\n]*' index.php | head -n1 | sed -E 's/[[:space:]]+$//')"
+          tag="${GITHUB_REF_NAME#v}"
+          [ -n "$version" ] || { echo "index.php has no Version: header." >&2; exit 1; }
+          [ "$version" = "$tag" ] || { echo "tag $GITHUB_REF_NAME does not match Version: $version" >&2; exit 1; }
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+
+      - name: Check out core, whose billing classes the tests load
+        uses: actions/checkout@v4
+        with:
+          repository: mindstellar/shopclass
+          ref: develop
+          path: core
+
+      - name: Run the tests
+        run: SHOPCLASS_CORE="$PWD/core" ./tests/run.sh
+
+      - name: Build the zip
+        id: build
+        run: |
+          slug=paypal
+          version="${{ steps.version.outputs.version }}"
+          mkdir -p "dist/$slug"
+          rsync -a --exclude=.git --exclude=core --exclude=dist --exclude-from=.distignore ./ "dist/$slug/"
+          ( cd dist && zip -X -r -q "${slug}_${version}.zip" "$slug" )
+          sha256sum "dist/${slug}_${version}.zip" | awk '{print $1}' > "dist/${slug}_${version}.zip.sha256"
+          echo "zip=dist/${slug}_${version}.zip" >> "$GITHUB_OUTPUT"
+
+      - name: Release notes from the changelog
+        run: |
+          awk -v v="${{ steps.version.outputs.version }}" '
+            $0 ~ "^## " v "$" { on = 1; next }
+            on && /^## / { exit }
+            on { print }
+          ' CHANGELOG.md > notes.md
+          [ -s notes.md ] || echo "See the changelog." > notes.md
+
+      - uses: softprops/action-gh-release@v2
+        with:
+          body_path: notes.md
+          files: |
+            ${{ steps.build.outputs.zip }}
+            ${{ steps.build.outputs.zip }}.sha256

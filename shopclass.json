@@ -1,0 +1,14 @@
+{
+  "$schema": "../schema/package.schema.json",
+  "slug": "paypal",
+  "type": "plugin",
+  "categories": ["payments"],
+  "tags": ["billing", "payments", "paypal", "checkout"],
+  "short_description": "Take payments for credit packages through PayPal Checkout, with verified webhooks and refunds from the admin.",
+  "icon": "assets/icon.svg",
+  "license": "GPL-3.0-or-later",
+  "support": {
+    "issues": "https://github.com/mindstellar/shopclass-plugin-paypal/issues",
+    "docs": "https://github.com/mindstellar/shopclass-plugin-paypal#readme"
+  }
+}

@@ -1,0 +1,214 @@
+msgid ""
+msgstr ""
+"Project-Id-Version: PayPal Payment 0.1.0\n"
+"Report-Msgid-Bugs-To: https://github.com/mindstellar/shopclass-plugin-paypal/issues\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=UTF-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Plural-Forms: nplurals=2; plural=(n != 1);\n"
+"Language: \n"
+
+#: src/PayPalGateway.php:161
+msgid "%d credits"
+msgstr ""
+
+#: src/Plugin.php:311
+msgid "A PayPal payment could not be recorded after several tries."
+msgstr ""
+
+#: src/PayPalGateway.php:386
+msgid "Add the client id and secret for this mode, then save."
+msgstr ""
+
+#: src/Plugin.php:278
+msgid "Check pending PayPal orders"
+msgstr ""
+
+#: settings.php:119
+msgid "Checkout"
+msgstr ""
+
+#: settings.php:33
+msgid "Client ID"
+msgstr ""
+
+#: src/PayPalGateway.php:395
+msgid "Connected to PayPal (live)."
+msgstr ""
+
+#: src/PayPalGateway.php:396
+msgid "Connected to the PayPal sandbox."
+msgstr ""
+
+#: settings.php:113
+msgid "Connection"
+msgstr ""
+
+#: src/Plugin.php:313
+msgid "Error: %s"
+msgstr ""
+
+#: settings.php:99
+msgid "From developer.paypal.com > Apps & Credentials, with Live selected."
+msgstr ""
+
+#: settings.php:95
+msgid "From developer.paypal.com > Apps & Credentials, with Sandbox selected."
+msgstr ""
+
+#: settings.php:65
+msgid "In your PayPal app, add a webhook with this URL and subscribe it to these events:"
+msgstr ""
+
+#: settings.php:87
+msgid "Live"
+msgstr ""
+
+#: settings.php:98
+msgid "Live app"
+msgstr ""
+
+#: settings.php:78
+#: settings.php:83
+msgid "Mode"
+msgstr ""
+
+#: settings.php:124
+msgid "Name at checkout"
+msgstr ""
+
+#: src/PayPalGateway.php:399
+msgid "No webhook id is set, so PayPal is not offered at checkout yet."
+msgstr ""
+
+#: src/Plugin.php:245
+msgid "Order #%d is paid."
+msgstr ""
+
+#: src/Plugin.php:250
+msgid "Order #%d was not paid."
+msgstr ""
+
+#: settings.php:73
+msgid "PayPal Payment"
+msgstr ""
+
+#: src/PayPalGateway.php:407
+msgid "PayPal does not know this webhook id. Copy it from the same app as the client id."
+msgstr ""
+
+#: src/Plugin.php:312
+msgid "PayPal event: %s"
+msgstr ""
+
+#: src/Plugin.php:344
+msgid "PayPal is in sandbox mode: no real money is taken. Switch to live mode before the site takes payments."
+msgstr ""
+
+#: src/PayPalGateway.php:885
+msgid "PayPal payment could not be started. Please try again later."
+msgstr ""
+
+#: src/PayPalGateway.php:392
+msgid "PayPal refused the client id and secret: %s"
+msgstr ""
+
+#: src/Plugin.php:346
+msgid "PayPal settings"
+msgstr ""
+
+#: src/Plugin.php:325
+msgid "PayPal: a payment needs checking"
+msgstr ""
+
+#: src/Plugin.php:248
+msgid "Payment for order #%d is processing. Credits are added once PayPal confirms it."
+msgstr ""
+
+#: src/Plugin.php:246
+msgid "Payment for order #%d received. Credits added."
+msgstr ""
+
+#: src/Plugin.php:275
+msgid "Record a PayPal payment"
+msgstr ""
+
+#: src/Plugin.php:314
+msgid "Retry it under Tools > System info > Jobs (job #%d), and check the order in Billing > Orders."
+msgstr ""
+
+#: settings.php:86
+msgid "Sandbox"
+msgstr ""
+
+#: settings.php:94
+msgid "Sandbox app"
+msgstr ""
+
+#: settings.php:84
+msgid "Sandbox uses your sandbox app and PayPal's test accounts. No real money moves."
+msgstr ""
+
+#: settings.php:42
+msgid "Secret"
+msgstr ""
+
+#: settings.php:43
+msgid "Shown once in the PayPal app. It is never shown here again; leave blank to keep the saved one."
+msgstr ""
+
+#: settings.php:75
+msgid "Take payments for credit packages through PayPal. Buyers pay on PayPal's own pages, so no card or account details reach this site."
+msgstr ""
+
+#: src/Plugin.php:381
+msgid "That order is not available."
+msgstr ""
+
+#: src/PayPalGateway.php:422
+msgid "The webhook is missing these events: %s"
+msgstr ""
+
+#: src/PayPalGateway.php:425
+msgid "The webhook is set up."
+msgstr ""
+
+#: src/PayPalGateway.php:414
+msgid "The webhook points to %s, not to this site."
+msgstr ""
+
+#: settings.php:69
+msgid "Then copy the webhook ID into the field for the same mode. Sandbox and live apps each need their own webhook."
+msgstr ""
+
+#: settings.php:37
+msgid "This does not look like a PayPal client ID."
+msgstr ""
+
+#: settings.php:49
+msgid "This does not look like a PayPal secret."
+msgstr ""
+
+#: settings.php:58
+msgid "This does not look like a PayPal webhook ID."
+msgstr ""
+
+#: settings.php:55
+msgid "Under Webhooks in the same app, after you add the URL below."
+msgstr ""
+
+#: settings.php:102
+msgid "Webhook"
+msgstr ""
+
+#: settings.php:54
+msgid "Webhook ID"
+msgstr ""
+
+#: settings.php:107
+msgid "Webhook URL"
+msgstr ""
+
+#: src/Plugin.php:224
+msgid "You cancelled the PayPal payment for order #%d. Nothing was charged."
+msgstr ""
