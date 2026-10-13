@@ -256,7 +256,7 @@ function fake_config(array $over = array()): Config
         static fn (int $id): string => 'https://shop.test/index.php?page=route&route=paypal-return&order=' . $id,
         static fn (int $id): string => 'https://shop.test/index.php?page=route&route=paypal-cancel&order=' . $id,
         'https://shop.test/buy',
-        static fn (): bool => $admin
+        $admin === null ? null : static fn (): bool => $admin
     );
 }
 

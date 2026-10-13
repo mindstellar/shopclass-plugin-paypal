@@ -851,9 +851,13 @@ class PayPalGateway implements RefundableGateway, DashboardLinkGateway
             if (!is_array($link) || !in_array($link['rel'] ?? '', array('payer-action', 'approve'), true)) {
                 continue;
             }
-            $href = (string) ($link['href'] ?? '');
-            $host = strtolower((string) parse_url($href, PHP_URL_HOST));
-            if (str_starts_with($href, 'https://') && ($host === 'paypal.com' || str_ends_with($host, '.paypal.com'))) {
+            $href  = (string) ($link['href'] ?? '');
+            $parts = parse_url($href);
+            if (!is_array($parts) || ($parts['scheme'] ?? '') !== 'https' || isset($parts['port']) || isset($parts['user']) || isset($parts['pass'])) {
+                continue;
+            }
+            $host = strtolower((string) ($parts['host'] ?? ''));
+            if ($host === 'paypal.com' || str_ends_with($host, '.paypal.com')) {
                 return $href;
             }
         }

@@ -211,6 +211,16 @@ pin('it asked PayPal', 1, $count);
 
 harness_section('the connection check is kept for ten minutes');
 
+$keyOf = static fn (array $over): string => (new Connection(fake_config($over), new FakeHttp(), new MemoryCache()))->key();
+pin('the kept check is keyed on mode, client id, secret and webhook id', 5, count(array_unique(array(
+    $keyOf(array()),
+    $keyOf(array('mode' => 'live')),
+    $keyOf(array('webhook' => 'OTHERWEBHOOK1234')),
+    $keyOf(array('client' => 'BXYZ3RDGsmBLJE-otTkBtM-jBRd1TCQwFf9RGfwddNXWz0uFU9ztymylOhRS')),
+    $keyOf(array('secret' => 'EOther_aaaaaaaaaaaaaaaaaaaaaaaaaaa')),
+))));
+pin('and the same settings give the same key', $keyOf(array()), $keyOf(array()));
+
 pin('the next load shows the same', $html, $render());
 pin('without asking PayPal', $count, count($http->requests));
 pin('kept for ten minutes', 600, $GLOBALS['kv_ttl']['paypal']['connection']);

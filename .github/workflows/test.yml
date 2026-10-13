@@ -1,0 +1,64 @@
+# Runs the unit tests and the integration test against core's develop branch on every
+# push and pull request. The integration test needs core's PHP packages and a MySQL server.
+name: test
+
+on:
+  push:
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        php: ['8.0', '8.3']
+    services:
+      mysql:
+        image: mysql:8.0
+        env:
+          MYSQL_ROOT_PASSWORD: root
+        ports:
+          - 3306:3306
+        options: >-
+          --health-cmd="mysqladmin ping -h 127.0.0.1 -proot"
+          --health-interval=10s
+          --health-timeout=5s
+          --health-retries=10
+    env:
+      SHOPCLASS_CORE: ${{ github.workspace }}/core
+      DRIFT_DB_HOST: 127.0.0.1
+      DRIFT_DB_PORT: 3306
+      DRIFT_DB_USER: root
+      DRIFT_DB_PASS: root
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Check out core, whose billing classes the tests load
+        uses: actions/checkout@v4
+        with:
+          repository: mindstellar/shopclass
+          ref: develop
+          path: core
+
+      - uses: shivammathur/setup-php@v2
+        with:
+          php-version: ${{ matrix.php }}
+          extensions: curl, mbstring, mysqli
+          tools: composer
+
+      - name: Install core's PHP packages
+        working-directory: core
+        run: composer install --no-dev --no-interaction --prefer-dist
+
+      - name: Lint
+        run: find . -path ./core -prune -o -name '*.php' -print0 | xargs -0 -n1 php -l > /dev/null
+
+      - name: Unit tests
+        run: ./tests/run.sh
+
+      - name: Integration test
+        run: php tests/integration/billing.php

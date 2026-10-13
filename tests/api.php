@@ -46,9 +46,13 @@ pin('across requests too, through the cache', 1, $http->tokens);
 $other = new PayPalApi($http, PayPalApi::SANDBOX, $client, 'EOtherSecret_aaaaaaaaaaaaaaaaaaaa', $cache);
 $other->order('X');
 pin('a new secret gets its own token', 2, $http->tokens);
+$otherClient = new PayPalApi($http, PayPalApi::SANDBOX, 'BXYZ3RDGsmBLJE-otTkBtM-jBRd1TCQwFf9RGfwddNXWz0uFU9ztymylOhRS', $secret, $cache);
+$otherClient->order('X');
+pin('so does a new client id with the same secret', 3, $http->tokens);
+pin('each under its own key', 3, count($cache->items));
 $live = new PayPalApi($http, PayPalApi::LIVE, $client, $secret, $cache);
 $live->order('X');
-pin('so does the other mode', 3, $http->tokens);
+pin('so does the other mode', 4, $http->tokens);
 pin('which calls the live API', 'https://api-m.paypal.com/v2/checkout/orders/X', end($http->requests)['url']);
 
 $short = new FakeHttp();

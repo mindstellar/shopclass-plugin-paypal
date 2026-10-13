@@ -29,6 +29,8 @@ foreach (array('HUF', 'JPY', 'TWD') as $code) {
     pin($code . ': 1000 units is "1000"', '1000', Money::toValue(1_000_000_000, $code));
     pin($code . ': a fraction is refused', null, Money::toValue(10_450_000, $code));
 }
+pin('lower case counts too: 1 jpy is "1"', '1', Money::toValue(1_000_000, 'jpy'));
+pin('and has no decimals', 0, Money::decimals('huf'));
 pin('the zero-decimal list is exactly these', array('HUF', 'JPY', 'TWD'), Money::ZERO_DECIMAL);
 
 harness_section('currencies PayPal does not take');

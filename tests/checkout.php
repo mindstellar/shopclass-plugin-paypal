@@ -28,6 +28,7 @@ check('not when PayPal does not take the billing currency', !fake_gateway($http,
 check('yes for a zero-decimal one', fake_gateway($http, $orders, array('billing' => 'JPY'))->isConfigured());
 check('in sandbox mode, not offered to a buyer who is not an admin', !fake_gateway($http, $orders, array('admin' => false))->isConfigured());
 check('but webhooks and lookups still work for them', fake_gateway($http, $orders, array('admin' => false))->hasKeys());
+check('in sandbox mode with no way to tell an admin, offered to nobody', !fake_gateway($http, $orders, array('admin' => null))->isConfigured());
 check('in live mode, offered to everyone', fake_gateway($http, $orders, array('mode' => 'live', 'admin' => false))->isConfigured());
 check('only PayPal currencies are listed, so core offers it for no other', !in_array('INR', fake_gateway($http, $orders)->getSupportedCurrencies(), true));
 pin('no API call was needed for any of this', array(), $http->requests);
@@ -72,6 +73,11 @@ $http->on('POST', 'v2/checkout/orders', 200, pp_order($huf, 'PAYER_ACTION_REQUIR
 pin('the older "approve" link works too', 'https://www.paypal.com/checkoutnow?token=' . pp_order_id($huf->getId()), $gateway->createCheckout($huf)->getPayload());
 pin('forints go as whole forints', '2500', $http->lastJson()['purchase_units'][0]['amount']['value']);
 
+$lower = $orders->add(2_000_000_000, 'jpy');
+$http->on('POST', 'v2/checkout/orders', 200, pp_order($lower, 'PAYER_ACTION_REQUIRED', null));
+$gateway->createCheckout($lower);
+pin('a lower-case currency on the order is sent upper case, in whole units', array('currency_code' => 'JPY', 'value' => '2000'), $http->lastJson()['purchase_units'][0]['amount']);
+
 harness_section('createCheckout when it cannot');
 
 $GLOBALS['flash'] = array();
@@ -102,6 +108,20 @@ $http->on('POST', 'v2/checkout/orders', 200, pp_order($evil, 'PAYER_ACTION_REQUI
 pin('an approve link off paypal.com is refused', 'https://shop.test/buy', $gateway->createCheckout($evil)->getPayload());
 $http->on('POST', 'v2/checkout/orders', 200, pp_order($evil, 'PAYER_ACTION_REQUIRED', null, array('links' => array(array('rel' => 'payer-action', 'href' => 'http://www.paypal.com/checkoutnow')))));
 pin('so is a plain http one', 'https://shop.test/buy', $gateway->createCheckout($orders->add())->getPayload());
+foreach (array(
+    'a host that only ends in paypal.com' => 'https://evilpaypal.com/checkoutnow',
+    'paypal.com as a subdomain of another' => 'https://paypal.com.evil.com/checkoutnow',
+    'a port'                               => 'https://www.paypal.com:8443/checkoutnow',
+    'a user name before the host'          => 'https://evil.test@www.paypal.com/checkoutnow',
+    'upper-case HTTPS is still checked'    => 'HTTPS://evilpaypal.com/x',
+) as $label => $href) {
+    $bad = $orders->add();
+    $http->on('POST', 'v2/checkout/orders', 200, pp_order($bad, 'PAYER_ACTION_REQUIRED', null, array('links' => array(array('rel' => 'payer-action', 'href' => $href)))));
+    pin('refused, the order closed: ' . $label, array('https://shop.test/buy', Order::STATUS_FAILED), array($gateway->createCheckout($bad)->getPayload(), $orders->find($bad->getId())->getStatus()));
+}
+$good = $orders->add();
+$http->on('POST', 'v2/checkout/orders', 200, pp_order($good, 'PAYER_ACTION_REQUIRED', null, array('links' => array(array('rel' => 'payer-action', 'href' => 'https://paypal.com/checkoutnow?token=X')))));
+pin('paypal.com itself is fine', 'https://paypal.com/checkoutnow?token=X', $gateway->createCheckout($good)->getPayload());
 
 harness_section('storing the PayPal order');
 

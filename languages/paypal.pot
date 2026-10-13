@@ -121,7 +121,7 @@ msgstr ""
 msgid "PayPal payment %1$s for order #%2$d arrived after the order was closed. It was refunded to the buyer at PayPal."
 msgstr ""
 
-#: src/PayPalGateway.php:899
+#: src/PayPalGateway.php:903
 msgid "PayPal payment could not be started. Please try again later."
 msgstr ""
 

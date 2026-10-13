@@ -290,4 +290,19 @@ pin('and takes its credits back', 100, Wallet::balance($buyer));
 
 pin('nothing needed the queue', array(), $GLOBALS['queued']);
 
+harness_section('who sees sandbox mode at checkout');
+
+require_once ABS_PATH . 'oc-includes/osclass/helpers/hUsers.php';
+$_SESSION = array(); // in memory, so no real session starts
+\Session::getInstance()->_set('userId', (string) $buyer);
+$isAdmin = static fn (): bool => (\mindstellar\paypal\Config::fromSettings()->isAdmin)();
+pin('a signed-in buyer is not an admin', false, $isAdmin());
+$admin->query('INSERT INTO ' . DB_TABLE_PREFIX . "t_admin (s_name, s_username, s_password, s_email) VALUES ('Boss', 'boss', 'x', 'boss@example.test')");
+$adminId = (int) $admin->insert_id;
+\Session::getInstance()->_set('adminId', (string) $adminId);
+\Session::getInstance()->_set('adminStamp', \mindstellar\auth\AuthStamp::of(\Admin::getInstance()->findByPrimaryKey($adminId)));
+pin('a signed-in admin is', true, $isAdmin());
+\Session::getInstance()->_drop('adminId');
+pin('and stops being one when signed out', false, $isAdmin());
+
 exit(harness_result());

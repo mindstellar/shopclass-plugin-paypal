@@ -53,6 +53,20 @@ $count = count($http->requests);
 $r     = $decide(event('CHECKOUT.ORDER.APPROVED', pp_order($order, 'APPROVED', null)));
 pin('an approval PayPal shows for another amount is not captured', array(CallbackResult::OUTCOME_IGNORED, $count + 1), array($r->getOutcome(), count($http->requests)));
 
+$http->on('GET', 'v2/checkout/orders/' . pp_order_id(1), 200, pp_order($order, 'APPROVED', null, array('purchase_units' => array(array('custom_id' => '1', 'amount' => array('currency_code' => 'EUR', 'value' => '9.99'))))));
+$count = count($http->requests);
+$r     = $decide(event('CHECKOUT.ORDER.APPROVED', pp_order($order, 'APPROVED', null)));
+pin('nor one for the same figure in another currency', array(CallbackResult::OUTCOME_IGNORED, $count + 1), array($r->getOutcome(), count($http->requests)));
+
+$http->on('GET', 'v2/checkout/orders/' . pp_order_id(1), 200, pp_order($order, 'COMPLETED', null, array('id' => '9ZZ99999999999999')));
+$count = count($http->requests);
+$r     = $decide(event('PAYMENT.CAPTURE.COMPLETED', pp_capture($order)));
+pin('PayPal answering with another order settles nothing', array('PayPal answered with another order', $count + 1), array($r->getMessage(), count($http->requests)));
+
+$refOnly = $orders->add(9_990_000, 'USD', pp_order_id(count($orders->orders) + 1));
+pp_lookup($http, $refOnly);
+pin('an order holding its PayPal order only as its reference, no meta, still settles', array(CallbackResult::OUTCOME_PAID, $refOnly->getId()), array(($r = $decide(event('PAYMENT.CAPTURE.COMPLETED', pp_capture($refOnly))))->getOutcome(), $r->getOrderId()));
+
 $paid = $orders->sent();
 $orders->set($paid->getId(), 'paid', pp_capture_id($paid->getId()));
 $http->on('GET', 'v2/checkout/orders/' . pp_order_id($paid->getId()), 200, pp_order($paid, 'APPROVED', null));
@@ -66,6 +80,8 @@ $http->on('GET', $capPath, 200, pp_capture($refundable, array('status' => 'REFUN
 $r = $decide(event('PAYMENT.CAPTURE.REFUNDED', pp_refund($refundable)));
 pin('a refund PayPal confirms in full refunds the order', array(CallbackResult::OUTCOME_REFUNDED, $paid->getId()), array($r->getOutcome(), $r->getOrderId()));
 pin('the capture was looked up', 'https://api-m.sandbox.paypal.com/' . $capPath, $http->lastCall()['url']);
+$http->on('GET', $capPath, 200, pp_capture($refundable, array('status' => 'REFUNDED', 'id' => '7XX77777777777777')));
+pin('a capture lookup that answers with another capture is ignored', 'not refunded in full', $decide(event('PAYMENT.CAPTURE.REFUNDED', pp_refund($refundable)))->getMessage());
 $http->on('GET', $capPath, 200, pp_capture($refundable, array('status' => 'PARTIALLY_REFUNDED')));
 pin('a partial refund changes nothing, even if the event claims the full amount', 'not refunded in full', $decide(event('PAYMENT.CAPTURE.REFUNDED', pp_refund($refundable)))->getMessage());
 $r = $decide(event('PAYMENT.CAPTURE.REFUNDED', pp_refund($refundable, array('custom_id' => '1'))));
@@ -145,6 +161,23 @@ $http->on('POST', 'v2/payments/captures/' . pp_capture_id($refused->getId()) . '
 $r = $gateway->handleCallback(array(PayPalGateway::TRUSTED => Verified::event(event('PAYMENT.CAPTURE.COMPLETED', pp_capture($refused)))));
 pin('a refund PayPal refuses is reported to the admin to do by hand', array('payment for a closed order; refund refused', 3), array($r->getMessage(), count($GLOBALS['notified'])));
 check('with PayPal\'s reason', str_contains(implode(' ', $GLOBALS['notified'][2][1]), 'REFUND_NOT_ALLOWED'));
+$count = count($http->calls());
+$r     = $gateway->handleCallback(array(PayPalGateway::TRUSTED => Verified::event(event('PAYMENT.CAPTURE.COMPLETED', pp_capture($refused), 'WH-REFUSED-AGAIN'))));
+pin('a second delivery after a refusal sends no refund and no mail', array('payment for a closed order was already handled', 3, 1), array($r->getMessage(), count($GLOBALS['notified']), count($http->calls()) - $count));
+
+foreach (array('FAILED', 'CANCELLED', '') as $status) {
+    $odd = $orders->sent();
+    $orders->set($odd->getId(), 'failed', null);
+    pp_lookup($http, $odd);
+    $http->on('POST', 'v2/payments/captures/' . pp_capture_id($odd->getId()) . '/refund', 201, array('id' => '1JU08902781691497', 'status' => $status));
+    $threw = false;
+    try {
+        $gateway->handleCallback(array(PayPalGateway::TRUSTED => Verified::event(event('PAYMENT.CAPTURE.COMPLETED', pp_capture($odd)))));
+    } catch (\mindstellar\http\HttpException $e) {
+        $threw = true;
+    }
+    pin('a refund PayPal answers ' . json_encode($status) . ' for is retried: throws, no meta, no mail', array(true, null, 3), array($threw, $orders->find($odd->getId())->meta(PayPalGateway::META_CLOSED_REFUND), count($GLOBALS['notified'])));
+}
 
 harness_section('the webhook');
 
@@ -198,6 +231,8 @@ $bad   = array(
     'another algorithm'                 => array('auth-algo' => 'SHA1withRSA') + pp_headers(),
     'a certificate off PayPal\'s hosts' => array('cert-url' => 'https://evil.test/v1/notifications/certs/CERT-1') + pp_headers(),
     'a lookalike host'                  => array('cert-url' => 'https://api.paypal.com.evil.test/v1/notifications/certs/CERT-1') + pp_headers(),
+    'a certificate on another port'     => array('cert-url' => 'https://api.paypal.com:8443/v1/notifications/certs/CERT-1') + pp_headers(),
+    'a certificate with a user name'    => array('cert-url' => 'https://x@api.paypal.com/v1/notifications/certs/CERT-1') + pp_headers(),
     'a certificate over http'           => array('cert-url' => 'http://api.paypal.com/v1/notifications/certs/CERT-1') + pp_headers(),
     'the api-m host is not where PayPal serves certificates' => array('cert-url' => 'https://api-m.paypal.com/v1/notifications/certs/CERT-1') + pp_headers(),
     'a transmission eleven minutes old' => array('transmission-time' => gmdate('Y-m-d\TH:i:s\Z', time() - 660)) + pp_headers(),
@@ -241,6 +276,29 @@ $noQueue = fake_gateway($http, $orders, array(), static function (array $r): Cal
 $noQueue->queueDown = true;
 deliver($http, $paidEvt);
 check('even when the queue is down too, PayPal is told to retry', $noQueue->handleCallback(array())->isRetryable());
+
+$GLOBALS['enqueued'] = array();
+function osc_job_enqueue($type, $payload = array(), $options = array())
+{
+    $GLOBALS['enqueued'][] = array($type, $payload, $options);
+
+    return 1;
+}
+/** The fake, but queueing through the gateway's own queue(). */
+final class RealQueueGateway extends FakeGateway
+{
+    protected function queue(string $eventId): void
+    {
+        PayPalGateway::queue($eventId);
+    }
+}
+$real           = new RealQueueGateway(fake_config(), $http, $orders, new MemoryCache());
+$real->onSettle = static function (array $r): CallbackResult {
+    throw new RuntimeException('db down');
+};
+deliver($http, $paidEvt);
+$real->handleCallback(array());
+pin('the real queue holds the event id alone, keyed on it so a redelivery folds in', array(array(\mindstellar\paypal\Plugin::JOB_EVENT, array('event' => $paidEvt['id']), array('unique_key' => $paidEvt['id']))), $GLOBALS['enqueued']);
 
 harness_section('not configured');
 
