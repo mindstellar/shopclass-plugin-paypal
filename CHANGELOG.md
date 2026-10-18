@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.1.2
+
+### Fixed
+- Shipped and delivered orders keep the payment link, a late payment for them is not reported as stuck, and goods orders are not told credits were added.
+
 ## 0.1.1
 
 ### Changed

@@ -40,4 +40,11 @@ foreach (array('../../account', '3C67?x=1', 'abc', 'javascript:alert(1)', "3C679
     pin('a bad ref gives no link: ' . json_encode($bad), null, $sandbox->dashboardUrl($orders->add(9_990_000, 'USD', $bad, 'paid')));
 }
 
+harness_section('shipped and delivered orders');
+
+$hasSettled = defined('mindstellar\\billing\\Order::SETTLED');
+foreach (array('shipped', 'delivered') as $st) {
+    pin('a ' . $st . ' order ' . ($hasSettled ? 'keeps its link' : 'has none on a core without SETTLED'), $hasSettled ? 'https://www.paypal.com/activity/payment/3C679366HH9000003' : null, $live->dashboardUrl($orders->add(9_990_000, 'USD', '3C679366HH9000003', $st)));
+}
+
 exit(harness_result());

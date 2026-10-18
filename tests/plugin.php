@@ -239,4 +239,21 @@ $config = array('webhook' => '', 'mode' => 'live');
 $render();
 pin('so does the other mode', $count + 3, count($http->requests));
 
+harness_section('goods orders and settled statuses');
+
+$GLOBALS['flash'] = array();
+Plugin::flashOutcome(3, 'pending', 'paid', true);
+pin('a goods order is not promised credits', array('ok', 'Payment received for order #3.'), $GLOBALS['flash'][0] ?? null);
+$GLOBALS['flash'] = array();
+Plugin::flashOutcome(3, 'pending', 'paid');
+pin('a credits order still is', array('ok', 'Payment for order #3 received. Credits added.'), $GLOBALS['flash'][0] ?? null);
+if (defined('mindstellar\\billing\\Order::SETTLED')) {
+    $GLOBALS['flash'] = array();
+    Plugin::flashOutcome(3, 'shipped', 'shipped', true);
+    pin('a shipped order reads as paid', array('ok', 'Order #3 is paid.'), $GLOBALS['flash'][0] ?? null);
+    $GLOBALS['flash'] = array();
+    Plugin::flashOutcome(3, 'paid', 'delivered', true);
+    pin('so does a delivered one', array('ok', 'Order #3 is paid.'), $GLOBALS['flash'][0] ?? null);
+}
+
 exit(harness_result());
