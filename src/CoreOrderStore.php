@@ -48,15 +48,6 @@ final class CoreOrderStore implements OrderStore
 
     public function stalePending(int $seconds, int $limit): array
     {
-        $rows = osc_db_table(DB_TABLE_PREFIX . 't_billing_order')
-            ->where('s_gateway', PayPalGateway::ID)
-            ->where('s_status', Order::STATUS_PENDING)
-            ->whereNotNull('s_external_ref')
-            ->where('dt_date', '<=', date('Y-m-d H:i:s', time() - $seconds))
-            ->orderBy('dt_date', 'ASC')
-            ->limit($limit)
-            ->get();
-
-        return array_map(static fn (array $row): Order => Order::fromRow($row), $rows);
+        return Orders::pendingBefore(PayPalGateway::ID, date('Y-m-d H:i:s', time() - $seconds + 1), $limit);
     }
 }

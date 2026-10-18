@@ -3,6 +3,7 @@
 ## 0.1.3
 
 ### Changed
+- The check for unanswered payments reads its orders through core's order store, oldest first.
 - After paying, the buyer returns to the theme's own order page when the theme has one.
 - The description and README say the plugin pays for shop orders as well as credit packages.
 - The README covers install, settings, what the plugin stores and its hooks.
