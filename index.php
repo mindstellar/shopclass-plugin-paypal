@@ -2,8 +2,8 @@
 /*
 Plugin Name: PayPal Payment
 Plugin URI: https://github.com/mindstellar/shopclass-plugin-paypal
-Description: Take payments for credit packages through PayPal Checkout. Buyers pay on PayPal's own pages; the order is captured on return and confirmed by a verified webhook. Refunds from the admin.
-Version: 0.1.2
+Description: Take payments for shop orders and credit packages through PayPal Checkout. Buyers pay on PayPal's own pages; the order is captured on return and confirmed by a verified webhook. Refunds from the admin.
+Version: 0.1.3
 Author: Navjot Tomer (Mindstellar)
 Author URI: https://mindstellar.com
 Short Name: paypal

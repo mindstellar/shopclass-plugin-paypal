@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.1.3
+
+### Changed
+- The description and README say the plugin pays for shop orders as well as credit packages.
+- The README covers install, settings, what the plugin stores and its hooks.
+- The CI tests run against the core branch named by the `SHOPCLASS_CORE_REF` variable, `develop` by default.
+
 ## 0.1.2
 
 ### Fixed

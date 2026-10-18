@@ -34,7 +34,7 @@ jobs:
         uses: actions/checkout@v4
         with:
           repository: mindstellar/shopclass
-          ref: develop
+          ref: ${{ vars.SHOPCLASS_CORE_REF || 'develop' }}
           path: core
 
       - name: Run the tests

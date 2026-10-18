@@ -1,9 +1,9 @@
 # PayPal Payment
 
-Take payments for ShopClass credit packages through
+Take payments for ShopClass shop orders and credit packages through
 [PayPal Checkout](https://developer.paypal.com/docs/checkout/). Buyers pay on PayPal's own
 pages, so no card or account details reach your site. When the buyer comes back, the plugin
-captures the payment and core adds the credits. A verified webhook covers buyers who never
+captures the payment and core adds the credits or marks the shop order paid. A verified webhook covers buyers who never
 come back.
 
 ## Requirements
@@ -14,9 +14,13 @@ come back.
 
 It works on shared hosting: the daily check and webhook retries run on cron or core's auto-cron.
 
-## Setup
+## Install
 
-1. Install and activate the plugin, then open **Plugins → PayPal Payment**.
+From the admin: **Plugins → Manage plugins → Browse**, find *PayPal Payment*, then **Install** and activate it. Or upload the zip under **Plugins → Add new**.
+
+## Settings
+
+1. Open **Plugins → PayPal Payment**.
 2. At [developer.paypal.com](https://developer.paypal.com), open **Apps & Credentials** with
    *Sandbox* selected and create an app (or open the default one).
 3. Copy its **Client ID** and **Secret** into the *Sandbox app* fields.
@@ -90,6 +94,14 @@ account is recorded the same way. Partial refunds change nothing on the site.
 Each site stores the PayPal order it created and ignores events for any other, and invoice
 ids carry a per-site prefix, so several sites can share an account. Give each site its own
 webhook.
+
+## What it stores
+
+The credentials, mode and site id are preferences in the `paypal` section. An order keeps the PayPal order and mode in its meta. The access token is cached for its lifetime. Retries and the daily check are jobs in core's job queue. No table of its own.
+
+## Hooks
+
+Registers the gateway on `register_payment_gateways`, adds the return and cancel pages, and listens to `register_jobs`, `cron_daily` and `job_gave_up`. It fires no hooks.
 
 ## Uninstall
 
