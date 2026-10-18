@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.1.4
+
+### Changed
+- Tests load the core container the registries now sit on.
+
 ## 0.1.3
 
 ### Changed

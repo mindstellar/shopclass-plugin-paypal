@@ -29,7 +29,7 @@ if (!defined('ABS_PATH')) {
 
 // Core classes the plugin names load from the same checkout.
 spl_autoload_register(static function (string $class): void {
-    foreach (array('mindstellar\\billing\\' => 'billing', 'mindstellar\\base\\' => 'base', 'mindstellar\\currency\\' => 'currency', 'mindstellar\\job\\' => 'job', 'mindstellar\\http\\' => 'http') as $prefix => $dir) {
+    foreach (array('mindstellar\\billing\\' => 'billing', 'mindstellar\\base\\' => 'base', 'mindstellar\\currency\\' => 'currency', 'mindstellar\\job\\' => 'job', 'mindstellar\\http\\' => 'http', 'mindstellar\\container\\' => 'container') as $prefix => $dir) {
         $file = core_path() . '/oc-includes/osclass/classes/' . $dir . '/' . substr($class, strlen($prefix)) . '.php';
         if (strncmp($class, $prefix, strlen($prefix)) === 0 && is_file($file)) {
             require $file;
