@@ -137,7 +137,7 @@ class PayPalGateway implements RefundableGateway, DashboardLinkGateway
                 'reference_id' => 'order-' . $id,
                 'custom_id'    => (string) $id,
                 'invoice_id'   => $this->config->siteId . '-' . $id,
-                'description'  => sprintf(__('%d credits', 'paypal'), $order->getCredits()),
+                'description'  => self::describe($order),
                 'amount'       => array('currency_code' => $currency, 'value' => $value),
             )),
             'payment_source' => array('paypal' => array('experience_context' => array(
@@ -653,7 +653,7 @@ class PayPalGateway implements RefundableGateway, DashboardLinkGateway
             $this->remember($order->getId(), self::META_CLOSED_REFUND, 'refused');
             $this->tell($subject, array(
                 sprintf(__('PayPal payment %1$s for order #%2$d arrived after the order was closed, and PayPal refused to refund it: %3$s', 'paypal'), $captureId, $order->getId(), self::short($e->getMessage())),
-                __('Refund it in your PayPal account. The buyer was not given credits.', 'paypal'),
+                __('Refund it in your PayPal account. The order was not marked paid.', 'paypal'),
             ));
 
             return CallbackResult::ignored('payment for a closed order; refund refused');
@@ -666,7 +666,7 @@ class PayPalGateway implements RefundableGateway, DashboardLinkGateway
         $this->remember($order->getId(), self::META_CLOSED_REFUND, (string) ($refund['id'] ?? $status));
         $this->tell($subject, array(
             sprintf(__('PayPal payment %1$s for order #%2$d arrived after the order was closed. It was refunded to the buyer at PayPal.', 'paypal'), $captureId, $order->getId()),
-            __('Nothing else needs doing. The buyer was not given credits.', 'paypal'),
+            __('Nothing else needs doing. The order was not marked paid.', 'paypal'),
         ));
 
         return CallbackResult::ignored('payment for a closed order; refunded');
@@ -836,6 +836,23 @@ class PayPalGateway implements RefundableGateway, DashboardLinkGateway
         } catch (Throwable $e) {
             error_log('PayPal: could not store ' . $key . ' on order #' . $orderId . ': ' . $e->getMessage());
         }
+    }
+
+    /**
+     * What the buyer sees they are paying for: a goods order's label on a core that has one, else the credits.
+     * PayPal takes up to 127 characters.
+     *
+     * @param Order $order
+     *
+     * @return string
+     */
+    private static function describe(Order $order): string
+    {
+        if (method_exists($order, 'isGoods') && $order->isGoods()) {
+            return mb_substr($order->getLabel(), 0, 127);
+        }
+
+        return sprintf(__('%d credits', 'paypal'), $order->getCredits());
     }
 
     /**

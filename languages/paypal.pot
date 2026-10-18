@@ -1,6 +1,6 @@
 msgid ""
 msgstr ""
-"Project-Id-Version: PayPal Payment 0.1.0\n"
+"Project-Id-Version: PayPal Payment 0.1.1\n"
 "Report-Msgid-Bugs-To: https://github.com/mindstellar/shopclass-plugin-paypal/issues\n"
 "MIME-Version: 1.0\n"
 "Content-Type: text/plain; charset=UTF-8\n"
@@ -8,7 +8,7 @@ msgstr ""
 "Plural-Forms: nplurals=2; plural=(n != 1);\n"
 "Language: \n"
 
-#: src/PayPalGateway.php:140
+#: src/PayPalGateway.php:855
 msgid "%d credits"
 msgstr ""
 
@@ -82,7 +82,7 @@ msgid "No webhook id is set, so PayPal is not offered at checkout yet."
 msgstr ""
 
 #: src/PayPalGateway.php:669
-msgid "Nothing else needs doing. The buyer was not given credits."
+msgid "Nothing else needs doing. The order was not marked paid."
 msgstr ""
 
 #: src/Plugin.php:251
@@ -121,7 +121,7 @@ msgstr ""
 msgid "PayPal payment %1$s for order #%2$d arrived after the order was closed. It was refunded to the buyer at PayPal."
 msgstr ""
 
-#: src/PayPalGateway.php:903
+#: src/PayPalGateway.php:920
 msgid "PayPal payment could not be started. Please try again later."
 msgstr ""
 
@@ -154,7 +154,7 @@ msgid "Record a PayPal payment"
 msgstr ""
 
 #: src/PayPalGateway.php:656
-msgid "Refund it in your PayPal account. The buyer was not given credits."
+msgid "Refund it in your PayPal account. The order was not marked paid."
 msgstr ""
 
 #: src/Plugin.php:321

@@ -63,6 +63,15 @@ pin('the PayPal order is remembered on the order', pp_order_id(1), $orders->find
 pin('and in its meta, with the mode', array(PayPalGateway::META_ORDER => pp_order_id(1), PayPalGateway::META_MODE => 'sandbox'), $orders->find(1)->getMeta());
 pin('which stays pending', Order::STATUS_PENDING, $orders->find(1)->getStatus());
 
+$goods = $orders->add(9_990_000, 'USD', null, Order::STATUS_PENDING, 'paypal', '2026-01-01 00:00:00', array('_kind' => 'goods', '_label' => 'Linen tee × 2 and 1 more'));
+$http->on('POST', 'v2/checkout/orders', 200, pp_order($goods, 'PAYER_ACTION_REQUIRED', null));
+$gateway->createCheckout($goods);
+pin('a goods order is described by its label, on a core that has one', method_exists($goods, 'isGoods') ? 'Linen tee × 2 and 1 more' : '100 credits', $http->lastJson()['purchase_units'][0]['description']);
+$long = $orders->add(9_990_000, 'USD', null, Order::STATUS_PENDING, 'paypal', '2026-01-01 00:00:00', array('_kind' => 'goods', '_label' => str_repeat('é', 200)));
+$http->on('POST', 'v2/checkout/orders', 200, pp_order($long, 'PAYER_ACTION_REQUIRED', null));
+$gateway->createCheckout($long);
+pin('cut to the 127 characters PayPal takes', method_exists($long, 'isGoods') ? 127 : 11, mb_strlen($http->lastJson()['purchase_units'][0]['description']));
+
 $jpy = $orders->add(1_000_000_000, 'JPY');
 $http->on('POST', 'v2/checkout/orders', 200, pp_order($jpy, 'PAYER_ACTION_REQUIRED', null));
 $gateway->createCheckout($jpy);

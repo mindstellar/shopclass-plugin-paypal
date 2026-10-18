@@ -7,8 +7,8 @@
 
 /**
  * The gateway against core's real billing layer and a scratch database, with PayPal faked:
- * a webhook credits once, a replay credits nothing, a wrong amount is refused, the return
- * page and the daily check settle, a refund and its webhook take credits once, and the
+ * a webhook credits once, a replay credits nothing, a wrong amount is refused, a goods order
+ * settles with no credits, the return page and the daily check settle, a refund and its webhook take credits once, and the
  * token is cached in core's key-value store.
  *
  * Needs core's scratch MySQL (see core's tests/lib/scratchdb.php). Usage:
@@ -217,6 +217,21 @@ pin('none credited anything', 100, Wallet::balance($buyer));
 pp_lookup($http, $short, 'COMPLETED', array(pp_capture($short, array('status' => 'DECLINED'))));
 $webhook(event('PAYMENT.CAPTURE.DENIED', pp_capture($short, array('status' => 'DECLINED'))));
 pin('a denied capture fails the order', Order::STATUS_FAILED, $status($short));
+
+harness_section('a goods order');
+
+$goods = $checkout(OrderStore::create($buyer, PayPalGateway::ID, 9_990_000, 'USD', 0, array('_kind' => 'goods', '_label' => 'Linen tee × 2 and 1 more')));
+pin('PayPal is told what was bought, on a core that has a label', method_exists($goods, 'isGoods') ? 'Linen tee × 2 and 1 more' : '0 credits', $http->lastJson()['purchase_units'][0]['description'] ?? null);
+$balance = Wallet::balance($buyer);
+pp_lookup($http, $goods, 'COMPLETED', array(pp_capture($goods, array('amount' => array('currency_code' => 'USD', 'value' => '0.01')))));
+$webhook(event('PAYMENT.CAPTURE.COMPLETED', pp_capture($goods), 'WH-GOODS-SHORT'));
+pin('a capture for another amount is refused by core', Order::STATUS_PENDING, $status($goods));
+pp_lookup($http, $goods);
+$webhook(event('PAYMENT.CAPTURE.COMPLETED', pp_capture($goods), 'WH-GOODS'));
+pin('the right amount settles it', Order::STATUS_PAID, $status($goods));
+pin('with no credits', array($balance, 0), array(Wallet::balance($buyer), $ledger($goods)));
+$webhook(event('PAYMENT.CAPTURE.COMPLETED', pp_capture($goods), 'WH-GOODS-2'));
+pin('a second delivery changes nothing', array(Order::STATUS_PAID, $balance), array($status($goods), Wallet::balance($buyer)));
 
 harness_section('a payment for an order closed meanwhile');
 

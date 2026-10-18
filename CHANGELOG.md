@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.1.1
+
+### Changed
+- A shop order shows what was bought at PayPal, not a credits count.
+- The admin mail about a payment for a closed order no longer speaks of credits.
+
 ## 0.1.0
 
 ### New
