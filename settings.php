@@ -71,7 +71,7 @@ $webhook = static function (): void {
 
 return array(
     'title'      => __('PayPal Payment', 'paypal'),
-    'menu'       => 'plugins',
+    'menu'       => '',
     'after_save' => array(Plugin::class, 'settingsSaved'),
     'intro'      => __('Take payments for credit packages through PayPal. Buyers pay on PayPal\'s own pages, so no card or account details reach this site.', 'paypal'),
     'groups'     => array(

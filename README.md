@@ -20,7 +20,7 @@ From the admin: **Plugins → Manage plugins → Browse**, find *PayPal Payment*
 
 ## Settings
 
-1. Open **Plugins → PayPal Payment**.
+1. Open **Settings → Billing → Payment methods** and choose **Set up** next to PayPal Payment.
 2. At [developer.paypal.com](https://developer.paypal.com), open **Apps & Credentials** with
    *Sandbox* selected and create an app (or open the default one).
 3. Copy its **Client ID** and **Secret** into the *Sandbox app* fields.

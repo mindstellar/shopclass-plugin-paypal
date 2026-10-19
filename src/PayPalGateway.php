@@ -80,6 +80,12 @@ class PayPalGateway implements RefundableGateway, DashboardLinkGateway
         return $this->config->name !== '' ? $this->config->name : 'PayPal';
     }
 
+    /** Where Settings > Billing links to set this method up. */
+    public function settingsUrl(): ?string
+    {
+        return osc_settings_page_url(Plugin::PAGE);
+    }
+
     /**
      * Every currency PayPal takes. Core offers the gateway only for an order in one of them.
      *
