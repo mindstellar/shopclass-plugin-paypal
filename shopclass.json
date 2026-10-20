@@ -2,6 +2,7 @@
   "$schema": "../schema/package.schema.json",
   "slug": "paypal",
   "type": "plugin",
+  "modes": ["classifieds", "shop"],
   "categories": ["payments"],
   "tags": ["billing", "payments", "paypal", "checkout"],
   "short_description": "Take payments for shop orders and credit packages through PayPal Checkout, with verified webhooks and refunds from the admin.",
