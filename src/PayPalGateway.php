@@ -255,10 +255,27 @@ class PayPalGateway implements RefundableGateway, DashboardLinkGateway
         }
         if ($status === 'PENDING') {
             // The PAYMENT.CAPTURE.REFUNDED webhook settles the order once PayPal finishes.
-            return CallbackResult::ignored('PayPal is still processing the refund; the order updates when it completes.');
+            return self::pendingRefund($order, $id, 'PayPal is still processing the refund; the order updates when it completes.');
         }
 
         return CallbackResult::ignored('PayPal did not accept the refund' . ($status !== '' ? ' (' . $status . ')' : ''));
+    }
+
+    /**
+     * A refund the provider accepted but is still processing. Older cores have no
+     * refundPending(), so they get ignored().
+     *
+     * @param Order  $order
+     * @param string $id      The provider's refund id
+     * @param string $message
+     *
+     * @return CallbackResult
+     */
+    private static function pendingRefund(Order $order, string $id, string $message): CallbackResult
+    {
+        return method_exists(CallbackResult::class, 'refundPending')
+            ? CallbackResult::refundPending($order->getId(), $message, $id)
+            : CallbackResult::ignored($message);
     }
 
     /**

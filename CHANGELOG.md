@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.1.7
+
+### Changed
+- A refund PayPal is still processing shows as sent, not as an error, on Shopclass 7.1.
+
 ## 0.1.6
 
 ### Changed
