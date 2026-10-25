@@ -73,4 +73,19 @@ pin('a signed-in admin is', true, ($c->isAdmin)());
 $GLOBALS['admin'] = 1;
 pin('whatever core returns is read as true or false', true, ($c->isAdmin)());
 
+harness_section('a core with osc_admin_is_browsing()');
+
+if (!function_exists('osc_admin_is_browsing')) {
+    function osc_admin_is_browsing(): bool
+    {
+        return $GLOBALS['browsing'];
+    }
+}
+$GLOBALS['admin']    = false;
+$GLOBALS['browsing'] = true;
+pin('an admin browsing the shop counts, also on its API calls', true, ($c->isAdmin)());
+$GLOBALS['admin']    = true;
+$GLOBALS['browsing'] = false;
+pin('...and that helper is the one read', false, ($c->isAdmin)());
+
 exit(harness_result());

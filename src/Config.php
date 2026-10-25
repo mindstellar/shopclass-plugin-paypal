@@ -68,7 +68,10 @@ final class Config
             static fn (int $orderId): string => osc_route_url(Plugin::ROUTE_RETURN, array('order' => $orderId)),
             static fn (int $orderId): string => osc_route_url(Plugin::ROUTE_CANCEL, array('order' => $orderId)),
             osc_billing_buy_url(),
-            static fn (): bool => function_exists('osc_is_admin_user_logged_in') && (bool) osc_is_admin_user_logged_in()
+            // Core 7.1 also sees an admin on the site's own API calls; older cores only on pages.
+            static fn (): bool => function_exists('osc_admin_is_browsing')
+                ? osc_admin_is_browsing()
+                : (function_exists('osc_is_admin_user_logged_in') && (bool) osc_is_admin_user_logged_in())
         );
     }
 

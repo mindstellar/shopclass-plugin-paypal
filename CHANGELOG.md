@@ -5,6 +5,7 @@
 ### Changed
 - In sandbox mode PayPal is offered with only the client id and secret; live mode still needs the webhook id.
 - The settings page moves under Billing, and says why PayPal is not offered at checkout (unsupported currency, sandbox mode).
+- Sandbox mode also shows at checkout for a signed-in admin on themes that pay through the API (Shopclass 7.1).
 
 ## 0.1.4
 
