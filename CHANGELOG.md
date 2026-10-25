@@ -3,6 +3,7 @@
 ## 0.1.5
 
 ### Changed
+- On Shopclass 7.0 the settings page stays reachable from the plugin list, since 7.0 has no Billing menu for plugin pages.
 - On Shopclass 7.0 the daily check of pending orders is skipped instead of failing.
 - In sandbox mode PayPal is offered with only the client id and secret; live mode still needs the webhook id.
 - The settings page moves under Billing, and says why PayPal is not offered at checkout (unsupported currency, sandbox mode).

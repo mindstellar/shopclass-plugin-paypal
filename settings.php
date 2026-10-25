@@ -71,7 +71,8 @@ $webhook = static function (): void {
 
 return array(
     'title'      => __('PayPal Payment', 'paypal'),
-    'menu'       => 'billing',
+    // Core 7.0 has no Billing menu for plugin pages; there the page is reached from the plugin list.
+    'menu'       => class_exists(\mindstellar\settings\SettingsPageRegistry::class) && in_array('billing', \mindstellar\settings\SettingsPageRegistry::MENUS, true) ? 'billing' : '',
     'menu_title' => __('PayPal', 'paypal'),
     'after_save' => array(Plugin::class, 'settingsSaved'),
     'intro'      => __('Take payments for credit packages through PayPal. Buyers pay on PayPal\'s own pages, so no card or account details reach this site.', 'paypal'),
