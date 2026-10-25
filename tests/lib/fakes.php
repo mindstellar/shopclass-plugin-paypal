@@ -271,6 +271,13 @@ class FakeGateway extends PayPalGateway
 
     public bool $queueDown = false;
 
+    public bool $coreFilters = true;
+
+    protected function coreFiltersByCurrency(): bool
+    {
+        return $this->coreFilters;
+    }
+
     protected function input(): array
     {
         return $GLOBALS['input'];

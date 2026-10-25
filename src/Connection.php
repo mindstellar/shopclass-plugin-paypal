@@ -63,7 +63,7 @@ final class Connection
         $notes = array();
         if (!Money::supported($this->config->billingCurrency)) {
             $notes[] = array('warning', sprintf(
-                __('PayPal does not take %s, so it is not offered at checkout. Change the billing currency to one PayPal takes.', 'paypal'),
+                __('PayPal cannot take %s, so it is not offered for credit packages. Shop orders in a currency PayPal takes still see it.', 'paypal'),
                 $this->config->billingCurrency
             ));
         }

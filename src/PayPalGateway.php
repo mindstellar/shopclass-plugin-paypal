@@ -97,18 +97,29 @@ class PayPalGateway implements RefundableGateway, DashboardLinkGateway
     }
 
     /**
-     * Offered at checkout once the active mode is set up and PayPal takes the billing currency.
+     * Offered at checkout once the active mode is set up. Core offers it only for an order in one of
+     * getSupportedCurrencies(); Shopclass 7.0 does not, so there it also needs the billing currency.
      * In sandbox mode only a signed-in admin sees it, so a live site cannot hand out free credits.
      *
      * @return bool
      */
     public function isConfigured(): bool
     {
-        if (!$this->hasKeys() || !Money::supported($this->config->billingCurrency)) {
+        if (!$this->hasKeys() || (!$this->coreFiltersByCurrency() && !Money::supported($this->config->billingCurrency))) {
             return false;
         }
 
         return $this->config->live() || ($this->config->isAdmin !== null && ($this->config->isAdmin)());
+    }
+
+    /**
+     * Whether core lists credit-package gateways by the billing currency (Shopclass 7.1 and later).
+     *
+     * @return bool
+     */
+    protected function coreFiltersByCurrency(): bool
+    {
+        return function_exists('osc_billing_gateways');
     }
 
     /**

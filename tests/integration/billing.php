@@ -150,6 +150,21 @@ osc_reset_preferences();
 PaymentGatewayRegistry::getInstance()->register($gateway);
 check('offered at checkout for USD', isset(PaymentGatewayRegistry::getInstance()->available('USD')[PayPalGateway::ID]));
 check('not for a currency PayPal does not take', !isset(PaymentGatewayRegistry::getInstance()->available('INR')[PayPalGateway::ID]));
+$billingIs = static function (string $code): void {
+    osc_set_preference('billing_currency', $code, 'osclass', 'STRING');
+    osc_reset_preferences();
+};
+$billingIs('INR');
+PaymentGatewayRegistry::getInstance()->register(new FakeGateway(fake_config(array('billing' => 'INR')), $http, $store, $cache));
+check('offered for a USD order with INR billing', isset(PaymentGatewayRegistry::getInstance()->available('USD')[PayPalGateway::ID]));
+check('not for an INR order', !isset(PaymentGatewayRegistry::getInstance()->available('INR')[PayPalGateway::ID]));
+if (function_exists('osc_billing_gateways')) {
+    check('a credit package in INR billing does not list it', !isset(osc_billing_gateways()[PayPalGateway::ID]));
+    $billingIs('USD');
+    PaymentGatewayRegistry::getInstance()->register($gateway);
+    check('and in USD billing it does', isset(osc_billing_gateways()[PayPalGateway::ID]));
+}
+$billingIs('USD');
 
 $buyer    = seed_user($admin, 'buyer', 'buyer@example.test');
 $newOrder = static fn (int $amount = 9_990_000, string $currency = 'USD'): Order => OrderStore::create($buyer, PayPalGateway::ID, $amount, $currency, 100);

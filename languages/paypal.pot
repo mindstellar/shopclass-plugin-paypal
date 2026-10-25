@@ -118,7 +118,7 @@ msgid "PayPal does not know this webhook id. Copy it from the same app as the cl
 msgstr ""
 
 #: src/Connection.php:66
-msgid "PayPal does not take %s, so it is not offered at checkout. Change the billing currency to one PayPal takes."
+msgid "PayPal cannot take %s, so it is not offered for credit packages. Shop orders in a currency PayPal takes still see it."
 msgstr ""
 
 #: src/Plugin.php:327

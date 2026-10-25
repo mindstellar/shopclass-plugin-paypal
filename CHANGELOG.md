@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.1.6
+
+### Changed
+- PayPal is offered for any order in a currency it takes, whatever the billing currency; credit packages need the billing currency to be one PayPal takes.
+- The settings page warns only when the billing currency is one PayPal cannot take.
+
 ## 0.1.5
 
 ### Changed

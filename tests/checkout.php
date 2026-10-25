@@ -25,7 +25,13 @@ check('not without the client id', !fake_gateway($http, $orders, array('client' 
 check('not without the secret', !fake_gateway($http, $orders, array('secret' => ''))->isConfigured());
 check('sandbox is offered without a webhook id', fake_gateway($http, $orders, array('webhook' => ''))->isConfigured());
 check('live is not offered without a webhook id', !fake_gateway($http, $orders, array('mode' => 'live', 'webhook' => ''))->isConfigured());
-check('not when PayPal does not take the billing currency', !fake_gateway($http, $orders, array('billing' => 'INR'))->isConfigured());
+check('offered when PayPal does not take the billing currency; core lists it by the order currency', fake_gateway($http, $orders, array('billing' => 'INR'))->isConfigured());
+$old = fake_gateway($http, $orders, array('billing' => 'INR'));
+$old->coreFilters = false;
+check('on a core that does not, not offered for a billing currency it does not take', !$old->isConfigured());
+$old = fake_gateway($http, $orders, array('billing' => 'USD'));
+$old->coreFilters = false;
+check('but offered for one it takes', $old->isConfigured());
 check('yes for a zero-decimal one', fake_gateway($http, $orders, array('billing' => 'JPY'))->isConfigured());
 check('in sandbox mode, not offered to a buyer who is not an admin', !fake_gateway($http, $orders, array('admin' => false))->isConfigured());
 check('but webhooks and lookups still work for them', fake_gateway($http, $orders, array('admin' => false))->hasKeys());
