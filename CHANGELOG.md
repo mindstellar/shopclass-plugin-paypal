@@ -3,6 +3,7 @@
 ## 0.1.5
 
 ### Changed
+- On Shopclass 7.0 the daily check of pending orders is skipped instead of failing.
 - In sandbox mode PayPal is offered with only the client id and secret; live mode still needs the webhook id.
 - The settings page moves under Billing, and says why PayPal is not offered at checkout (unsupported currency, sandbox mode).
 - Sandbox mode also shows at checkout for a signed-in admin on themes that pay through the API (Shopclass 7.1).
