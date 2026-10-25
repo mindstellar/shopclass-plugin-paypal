@@ -1,6 +1,6 @@
 msgid ""
 msgstr ""
-"Project-Id-Version: PayPal Payment 0.1.4\n"
+"Project-Id-Version: PayPal Payment 0.1.5\n"
 "Report-Msgid-Bugs-To: https://github.com/mindstellar/shopclass-plugin-paypal/issues\n"
 "MIME-Version: 1.0\n"
 "Content-Type: text/plain; charset=UTF-8\n"
@@ -8,7 +8,7 @@ msgstr ""
 "Plural-Forms: nplurals=2; plural=(n != 1);\n"
 "Language: \n"
 
-#: src/PayPalGateway.php:862
+#: src/PayPalGateway.php:867
 msgid "%d credits"
 msgstr ""
 
@@ -16,7 +16,7 @@ msgstr ""
 msgid "A PayPal payment could not be recorded after several tries."
 msgstr ""
 
-#: src/Connection.php:65
+#: src/Connection.php:87
 msgid "Add the client id and secret for this mode, then save."
 msgstr ""
 
@@ -24,7 +24,7 @@ msgstr ""
 msgid "Check pending PayPal orders"
 msgstr ""
 
-#: settings.php:120
+#: settings.php:121
 msgid "Checkout"
 msgstr ""
 
@@ -32,15 +32,15 @@ msgstr ""
 msgid "Client ID"
 msgstr ""
 
-#: src/Connection.php:74
+#: src/Connection.php:96
 msgid "Connected to PayPal (live)."
 msgstr ""
 
-#: src/Connection.php:75
+#: src/Connection.php:97
 msgid "Connected to the PayPal sandbox."
 msgstr ""
 
-#: settings.php:114
+#: settings.php:115
 msgid "Connection"
 msgstr ""
 
@@ -48,40 +48,48 @@ msgstr ""
 msgid "Error: %s"
 msgstr ""
 
-#: settings.php:100
+#: settings.php:101
 msgid "From developer.paypal.com > Apps & Credentials, with Live selected."
 msgstr ""
 
-#: settings.php:96
+#: settings.php:97
 msgid "From developer.paypal.com > Apps & Credentials, with Sandbox selected."
+msgstr ""
+
+#: src/Connection.php:71
+msgid "In sandbox mode only a signed-in admin sees PayPal at checkout."
 msgstr ""
 
 #: settings.php:65
 msgid "In your PayPal app, add a webhook with this URL and subscribe it to these events:"
 msgstr ""
 
-#: settings.php:88
+#: settings.php:89
 msgid "Live"
 msgstr ""
 
-#: settings.php:99
+#: settings.php:100
 msgid "Live app"
 msgstr ""
 
-#: settings.php:79
-#: settings.php:84
+#: settings.php:80
+#: settings.php:85
 msgid "Mode"
 msgstr ""
 
-#: settings.php:125
+#: settings.php:126
 msgid "Name at checkout"
 msgstr ""
 
-#: src/Connection.php:78
+#: src/Connection.php:101
 msgid "No webhook id is set, so PayPal is not offered at checkout yet."
 msgstr ""
 
-#: src/PayPalGateway.php:676
+#: src/Connection.php:102
+msgid "No webhook id is set. Sandbox payments still work when the buyer returns to the site; add a webhook before going live."
+msgstr ""
+
+#: src/PayPalGateway.php:681
 msgid "Nothing else needs doing. The order was not marked paid."
 msgstr ""
 
@@ -93,16 +101,24 @@ msgstr ""
 msgid "Order #%d was not paid."
 msgstr ""
 
+#: settings.php:75
+msgid "PayPal"
+msgstr ""
+
 #: settings.php:73
 msgid "PayPal Payment"
 msgstr ""
 
-#: index.php:50
+#: index.php:51
 msgid "PayPal Payment needs Shopclass 7.0 or later and is switched off. Update Shopclass to use it."
 msgstr ""
 
-#: src/Connection.php:86
+#: src/Connection.php:110
 msgid "PayPal does not know this webhook id. Copy it from the same app as the client id."
+msgstr ""
+
+#: src/Connection.php:66
+msgid "PayPal does not take %s, so it is not offered at checkout. Change the billing currency to one PayPal takes."
 msgstr ""
 
 #: src/Plugin.php:327
@@ -113,19 +129,19 @@ msgstr ""
 msgid "PayPal is in sandbox mode: no real money is taken. Switch to live mode before the site takes payments."
 msgstr ""
 
-#: src/PayPalGateway.php:662
+#: src/PayPalGateway.php:667
 msgid "PayPal payment %1$s for order #%2$d arrived after the order was closed, and PayPal refused to refund it: %3$s"
 msgstr ""
 
-#: src/PayPalGateway.php:675
+#: src/PayPalGateway.php:680
 msgid "PayPal payment %1$s for order #%2$d arrived after the order was closed. It was refunded to the buyer at PayPal."
 msgstr ""
 
-#: src/PayPalGateway.php:927
+#: src/PayPalGateway.php:932
 msgid "PayPal payment could not be started. Please try again later."
 msgstr ""
 
-#: src/Connection.php:71
+#: src/Connection.php:93
 msgid "PayPal refused the client id and secret: %s"
 msgstr ""
 
@@ -133,7 +149,7 @@ msgstr ""
 msgid "PayPal settings"
 msgstr ""
 
-#: src/PayPalGateway.php:652
+#: src/PayPalGateway.php:657
 msgid "PayPal: a payment arrived for a closed order"
 msgstr ""
 
@@ -157,7 +173,7 @@ msgstr ""
 msgid "Record a PayPal payment"
 msgstr ""
 
-#: src/PayPalGateway.php:663
+#: src/PayPalGateway.php:668
 msgid "Refund it in your PayPal account. The order was not marked paid."
 msgstr ""
 
@@ -165,15 +181,15 @@ msgstr ""
 msgid "Retry it under Tools > System info > Jobs (job #%d), and check the order in Billing > Orders."
 msgstr ""
 
-#: settings.php:87
+#: settings.php:88
 msgid "Sandbox"
 msgstr ""
 
-#: settings.php:95
+#: settings.php:96
 msgid "Sandbox app"
 msgstr ""
 
-#: settings.php:85
+#: settings.php:86
 msgid "Sandbox uses your sandbox app and PayPal's test accounts. No real money moves."
 msgstr ""
 
@@ -185,23 +201,23 @@ msgstr ""
 msgid "Shown once in the PayPal app. It is never shown here again; leave blank to keep the saved one."
 msgstr ""
 
-#: settings.php:76
+#: settings.php:77
 msgid "Take payments for credit packages through PayPal. Buyers pay on PayPal's own pages, so no card or account details reach this site."
 msgstr ""
 
-#: src/Plugin.php:425
+#: src/Plugin.php:426
 msgid "That order is not available."
 msgstr ""
 
-#: src/Connection.php:101
+#: src/Connection.php:125
 msgid "The webhook is missing these events: %s"
 msgstr ""
 
-#: src/Connection.php:104
+#: src/Connection.php:128
 msgid "The webhook is set up."
 msgstr ""
 
-#: src/Connection.php:93
+#: src/Connection.php:117
 msgid "The webhook points to %s, not to this site."
 msgstr ""
 
@@ -222,10 +238,10 @@ msgid "This does not look like a PayPal webhook ID."
 msgstr ""
 
 #: settings.php:55
-msgid "Under Webhooks in the same app, after you add the URL below."
+msgid "Under Webhooks in the same app, after you add the URL below. Optional in sandbox; needed to go live."
 msgstr ""
 
-#: settings.php:103
+#: settings.php:104
 msgid "Webhook"
 msgstr ""
 
@@ -233,7 +249,7 @@ msgstr ""
 msgid "Webhook ID"
 msgstr ""
 
-#: settings.php:108
+#: settings.php:109
 msgid "Webhook URL"
 msgstr ""
 

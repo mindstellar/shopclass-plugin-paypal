@@ -53,6 +53,28 @@ final class Connection
     }
 
     /**
+     * Why PayPal is not offered at checkout, or how sandbox mode limits it. Read from the
+     * settings each time, so it is never out of date.
+     *
+     * @return array<int,array{0:string,1:string}> level ('warning' or 'info') and message
+     */
+    public function offerNotes(): array
+    {
+        $notes = array();
+        if (!Money::supported($this->config->billingCurrency)) {
+            $notes[] = array('warning', sprintf(
+                __('PayPal does not take %s, so it is not offered at checkout. Change the billing currency to one PayPal takes.', 'paypal'),
+                $this->config->billingCurrency
+            ));
+        }
+        if (!$this->config->live()) {
+            $notes[] = array('info', __('In sandbox mode only a signed-in admin sees PayPal at checkout.', 'paypal'));
+        }
+
+        return $notes;
+    }
+
+    /**
      * Ask PayPal for a token and for the webhook, and say what is wrong, if anything.
      *
      * @param string $webhookUrl This site's webhook URL

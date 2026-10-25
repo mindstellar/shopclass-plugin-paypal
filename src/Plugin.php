@@ -384,7 +384,8 @@ final class Plugin
             }
         }
 
-        $classes = array('ok' => 'text-success', 'warning' => 'text-warning', 'error' => 'text-danger');
+        $lines   = array_merge($lines, $connection->offerNotes());
+        $classes = array('ok' => 'text-success', 'warning' => 'text-warning', 'error' => 'text-danger', 'info' => 'text-muted');
         $html    = '<ul class="list-unstyled">';
         foreach ($lines as $line) {
             if (is_array($line) && count($line) === 2) {

@@ -199,6 +199,18 @@ check('that never shows the secret', !str_contains($lines[0][1], fake_config()->
 
 pin('no credentials: one hint, and PayPal is not asked', array('warning'), array_column((new Connection(fake_config(array('secret' => '')), new FakeHttp(), new MemoryCache()))->check($url), 0));
 
+harness_section('why PayPal is not offered');
+
+$notes = static fn (array $over): array => (new Connection(fake_config($over), new FakeHttp(), new MemoryCache()))->offerNotes();
+pin('a currency PayPal does not take is said plainly',
+    array(array('warning', 'PayPal does not take INR, so it is not offered at checkout. Change the billing currency to one PayPal takes.'), array('info', 'In sandbox mode only a signed-in admin sees PayPal at checkout.')),
+    $notes(array('billing' => 'INR')));
+pin('sandbox mode with a supported currency has the sandbox line only', array(array('info', 'In sandbox mode only a signed-in admin sees PayPal at checkout.')), $notes(array()));
+pin('live mode with a supported currency has no note', array(), $notes(array('mode' => 'live')));
+$inrHtml = Plugin::connectionHtml(new Connection(fake_config(array('billing' => 'INR')), new FakeHttp(), new MemoryCache()));
+check('the settings page shows both lines', str_contains($inrHtml, 'PayPal does not take INR') && str_contains($inrHtml, '<li class="text-muted">In sandbox mode only a signed-in admin sees PayPal at checkout.</li>'), $inrHtml);
+Plugin::settingsSaved();
+
 $http   = new FakeHttp();
 $config = array('webhook' => '');
 $render = static function () use ($http, &$config): string {
