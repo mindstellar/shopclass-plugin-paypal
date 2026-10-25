@@ -302,7 +302,7 @@ pin('the real queue holds the event id alone, keyed on it so a redelivery folds 
 
 harness_section('not configured');
 
-$bare = fake_gateway($http, $orders, array('webhook' => ''));
+$bare = fake_gateway($http, $orders, array('mode' => 'live', 'webhook' => ''));
 deliver($http, $paidEvt);
 $r = $bare->handleCallback(array());
 pin('without a webhook id nothing is settled', CallbackResult::OUTCOME_IGNORED, $r->getOutcome());

@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.1.5
+
+### Changed
+- In sandbox mode PayPal is offered with only the client id and secret; live mode still needs the webhook id.
+
 ## 0.1.4
 
 ### Changed

@@ -23,7 +23,8 @@ $orders = new MemoryOrders();
 check('ready with a client id, a secret and a webhook id', fake_gateway($http, $orders)->isConfigured());
 check('not without the client id', !fake_gateway($http, $orders, array('client' => ''))->isConfigured());
 check('not without the secret', !fake_gateway($http, $orders, array('secret' => ''))->isConfigured());
-check('not without the webhook id', !fake_gateway($http, $orders, array('webhook' => ''))->isConfigured());
+check('sandbox is offered without a webhook id', fake_gateway($http, $orders, array('webhook' => ''))->isConfigured());
+check('live is not offered without a webhook id', !fake_gateway($http, $orders, array('mode' => 'live', 'webhook' => ''))->isConfigured());
 check('not when PayPal does not take the billing currency', !fake_gateway($http, $orders, array('billing' => 'INR'))->isConfigured());
 check('yes for a zero-decimal one', fake_gateway($http, $orders, array('billing' => 'JPY'))->isConfigured());
 check('in sandbox mode, not offered to a buyer who is not an admin', !fake_gateway($http, $orders, array('admin' => false))->isConfigured());
@@ -160,6 +161,9 @@ $http->on('POST', 'v2/checkout/orders/' . pp_order_id(1) . '/capture', 201, pp_o
 
 $r = $gateway->processReturn(pp_order_id(1), 1);
 pin('a captured order is paid', CallbackResult::OUTCOME_PAID, $r->getOutcome());
+
+$noHook = fake_gateway($http, $orders, array('webhook' => ''));
+pin('sandbox return capture is paid with no webhook id', CallbackResult::OUTCOME_PAID, $noHook->processReturn(pp_order_id(1), 1)->getOutcome());
 pin('with PayPal\'s figures', array(1, 9_990_000, 'USD'), array($r->getOrderId(), $r->getAmount(), $r->getCurrency()));
 pin('the capture id is the reference', pp_capture_id(1), $r->getExternalRef());
 pin('a capture request id per order and site', 'capture-' . SITE . '-1', $http->lastCall()['headers']['PayPal-Request-Id']);

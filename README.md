@@ -41,8 +41,9 @@ From the admin: **Plugins → Manage plugins → Browse**, find *PayPal Payment*
    settings page says whether the credentials and the webhook work. It is checked again
    after each save, and otherwise every ten minutes.
 
-PayPal shows at checkout once the active mode has a client ID, a secret and a webhook ID,
-and the site's billing currency is one PayPal takes.
+PayPal shows at checkout once the active mode has a client ID and a secret, and the site's
+billing currency is one PayPal takes. Live mode also needs a webhook ID. In sandbox it is
+optional, so a local site PayPal cannot reach still works: the buyer's return captures the payment.
 
 The secret is never shown again. Leave its box blank to keep it.
 

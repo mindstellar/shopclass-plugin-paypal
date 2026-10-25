@@ -52,7 +52,7 @@ $account = static function (string $mode, string $where) use ($pattern): array {
             'type'      => 'text',
             'name'      => $mode . '_webhook_id',
             'label'     => __('Webhook ID', 'paypal'),
-            'help'      => __('Under Webhooks in the same app, after you add the URL below.', 'paypal'),
+            'help'      => __('Under Webhooks in the same app, after you add the URL below. Optional in sandbox; needed to go live.', 'paypal'),
             'maxlength' => 64,
             'attrs'     => array('autocomplete' => 'off', 'spellcheck' => 'false'),
             'validate'  => $pattern('/^[A-Za-z0-9-]{5,64}$/', __('This does not look like a PayPal webhook ID.', 'paypal')),

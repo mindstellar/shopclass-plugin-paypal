@@ -75,7 +75,9 @@ final class Connection
             : __('Connected to the PayPal sandbox.', 'paypal')));
 
         if ($this->config->webhookId === '') {
-            $lines[] = array('warning', __('No webhook id is set, so PayPal is not offered at checkout yet.', 'paypal'));
+            $lines[] = $this->config->live()
+                ? array('warning', __('No webhook id is set, so PayPal is not offered at checkout yet.', 'paypal'))
+                : array('warning', __('No webhook id is set. Sandbox payments still work when the buyer returns to the site; add a webhook before going live.', 'paypal'));
 
             return $lines;
         }

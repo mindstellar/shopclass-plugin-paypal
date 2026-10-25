@@ -112,13 +112,15 @@ class PayPalGateway implements RefundableGateway, DashboardLinkGateway
     }
 
     /**
-     * Whether the active mode has a client id, a secret and a webhook id. Webhooks and lookups need only this.
+     * Whether the active mode has a client id and a secret, and in live mode a webhook id too.
+     * Sandbox works without a webhook id: the buyer's return captures the payment.
      *
      * @return bool
      */
     public function hasKeys(): bool
     {
-        return $this->config->clientId !== '' && $this->config->secret !== '' && $this->config->webhookId !== '';
+        return $this->config->clientId !== '' && $this->config->secret !== ''
+            && ($this->config->webhookId !== '' || !$this->config->live());
     }
 
     /**
@@ -376,6 +378,9 @@ class PayPalGateway implements RefundableGateway, DashboardLinkGateway
         }
         if (!PayPalApi::plausibleHeaders($headers)) {
             return CallbackResult::ignored('bad signature');
+        }
+        if ($this->config->webhookId === '') {
+            return CallbackResult::ignored('no webhook id is set');
         }
 
         try {
