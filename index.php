@@ -77,4 +77,11 @@ osc_add_hook('register_jobs', array(Plugin::class, 'registerJobs'));
 osc_add_hook('cron_daily', array(Plugin::class, 'daily'));
 osc_add_hook('job_gave_up', array(Plugin::class, 'jobGaveUp'));
 
-osc_add_hook('admin_page_header', array(Plugin::class, 'adminNotice'), 10);
+// Core 7.1 shows one shared notice for gateways in test mode; older cores get this plugin's own banner.
+if (class_exists(\mindstellar\billing\event\PaymentTestModes::class)) {
+    osc_add_filter('admin_payment_test_modes', static fn (array $modes): array => !osc_billing_enabled() || osc_settings_value(Plugin::PAGE, 'mode') === 'live'
+        ? $modes
+        : $modes + array('PayPal' => osc_settings_page_url(Plugin::PAGE)));
+} else {
+    osc_add_hook('admin_page_header', array(Plugin::class, 'adminNotice'), 10);
+}
