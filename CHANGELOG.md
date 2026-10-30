@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.1.8
+
+### Changed
+- On Shopclass 7.1 the test mode warning joins core's single payment notice.
+
 ## 0.1.7
 
 ### Changed
