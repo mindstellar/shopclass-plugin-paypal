@@ -75,7 +75,7 @@ return array(
     'menu'       => class_exists(\mindstellar\settings\SettingsPageRegistry::class) && in_array('billing', \mindstellar\settings\SettingsPageRegistry::MENUS, true) ? 'billing' : '',
     'menu_title' => __('PayPal', 'paypal'),
     'after_save' => array(Plugin::class, 'settingsSaved'),
-    'intro'      => __('Take payments for credit packages through PayPal. Buyers pay on PayPal\'s own pages, so no card or account details reach this site.', 'paypal'),
+    'intro'      => __('Take payments for shop orders and credit packages through PayPal. Buyers pay on PayPal\'s own pages, so no card or account details reach this site.', 'paypal'),
     'groups'     => array(
         array(
             'title'  => __('Mode', 'paypal'),

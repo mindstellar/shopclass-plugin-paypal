@@ -1,6 +1,6 @@
 msgid ""
 msgstr ""
-"Project-Id-Version: PayPal Payment 0.1.5\n"
+"Project-Id-Version: PayPal Payment 0.1.7\n"
 "Report-Msgid-Bugs-To: https://github.com/mindstellar/shopclass-plugin-paypal/issues\n"
 "MIME-Version: 1.0\n"
 "Content-Type: text/plain; charset=UTF-8\n"
@@ -8,7 +8,7 @@ msgstr ""
 "Plural-Forms: nplurals=2; plural=(n != 1);\n"
 "Language: \n"
 
-#: src/PayPalGateway.php:867
+#: src/PayPalGateway.php:895
 msgid "%d credits"
 msgstr ""
 
@@ -24,7 +24,7 @@ msgstr ""
 msgid "Check pending PayPal orders"
 msgstr ""
 
-#: settings.php:121
+#: settings.php:122
 msgid "Checkout"
 msgstr ""
 
@@ -40,7 +40,7 @@ msgstr ""
 msgid "Connected to the PayPal sandbox."
 msgstr ""
 
-#: settings.php:115
+#: settings.php:116
 msgid "Connection"
 msgstr ""
 
@@ -48,11 +48,11 @@ msgstr ""
 msgid "Error: %s"
 msgstr ""
 
-#: settings.php:101
+#: settings.php:102
 msgid "From developer.paypal.com > Apps & Credentials, with Live selected."
 msgstr ""
 
-#: settings.php:97
+#: settings.php:98
 msgid "From developer.paypal.com > Apps & Credentials, with Sandbox selected."
 msgstr ""
 
@@ -64,20 +64,20 @@ msgstr ""
 msgid "In your PayPal app, add a webhook with this URL and subscribe it to these events:"
 msgstr ""
 
-#: settings.php:89
+#: settings.php:90
 msgid "Live"
 msgstr ""
 
-#: settings.php:100
+#: settings.php:101
 msgid "Live app"
 msgstr ""
 
-#: settings.php:80
-#: settings.php:85
+#: settings.php:81
+#: settings.php:86
 msgid "Mode"
 msgstr ""
 
-#: settings.php:126
+#: settings.php:127
 msgid "Name at checkout"
 msgstr ""
 
@@ -89,7 +89,7 @@ msgstr ""
 msgid "No webhook id is set. Sandbox payments still work when the buyer returns to the site; add a webhook before going live."
 msgstr ""
 
-#: src/PayPalGateway.php:681
+#: src/PayPalGateway.php:709
 msgid "Nothing else needs doing. The order was not marked paid."
 msgstr ""
 
@@ -101,7 +101,7 @@ msgstr ""
 msgid "Order #%d was not paid."
 msgstr ""
 
-#: settings.php:75
+#: settings.php:76
 msgid "PayPal"
 msgstr ""
 
@@ -113,12 +113,12 @@ msgstr ""
 msgid "PayPal Payment needs Shopclass 7.0 or later and is switched off. Update Shopclass to use it."
 msgstr ""
 
-#: src/Connection.php:110
-msgid "PayPal does not know this webhook id. Copy it from the same app as the client id."
-msgstr ""
-
 #: src/Connection.php:66
 msgid "PayPal cannot take %s, so it is not offered for credit packages. Shop orders in a currency PayPal takes still see it."
+msgstr ""
+
+#: src/Connection.php:110
+msgid "PayPal does not know this webhook id. Copy it from the same app as the client id."
 msgstr ""
 
 #: src/Plugin.php:327
@@ -129,15 +129,15 @@ msgstr ""
 msgid "PayPal is in sandbox mode: no real money is taken. Switch to live mode before the site takes payments."
 msgstr ""
 
-#: src/PayPalGateway.php:667
+#: src/PayPalGateway.php:695
 msgid "PayPal payment %1$s for order #%2$d arrived after the order was closed, and PayPal refused to refund it: %3$s"
 msgstr ""
 
-#: src/PayPalGateway.php:680
+#: src/PayPalGateway.php:708
 msgid "PayPal payment %1$s for order #%2$d arrived after the order was closed. It was refunded to the buyer at PayPal."
 msgstr ""
 
-#: src/PayPalGateway.php:932
+#: src/PayPalGateway.php:960
 msgid "PayPal payment could not be started. Please try again later."
 msgstr ""
 
@@ -149,7 +149,7 @@ msgstr ""
 msgid "PayPal settings"
 msgstr ""
 
-#: src/PayPalGateway.php:657
+#: src/PayPalGateway.php:685
 msgid "PayPal: a payment arrived for a closed order"
 msgstr ""
 
@@ -173,7 +173,7 @@ msgstr ""
 msgid "Record a PayPal payment"
 msgstr ""
 
-#: src/PayPalGateway.php:668
+#: src/PayPalGateway.php:696
 msgid "Refund it in your PayPal account. The order was not marked paid."
 msgstr ""
 
@@ -181,15 +181,15 @@ msgstr ""
 msgid "Retry it under Tools > System info > Jobs (job #%d), and check the order in Billing > Orders."
 msgstr ""
 
-#: settings.php:88
+#: settings.php:89
 msgid "Sandbox"
 msgstr ""
 
-#: settings.php:96
+#: settings.php:97
 msgid "Sandbox app"
 msgstr ""
 
-#: settings.php:86
+#: settings.php:87
 msgid "Sandbox uses your sandbox app and PayPal's test accounts. No real money moves."
 msgstr ""
 
@@ -201,8 +201,8 @@ msgstr ""
 msgid "Shown once in the PayPal app. It is never shown here again; leave blank to keep the saved one."
 msgstr ""
 
-#: settings.php:77
-msgid "Take payments for credit packages through PayPal. Buyers pay on PayPal's own pages, so no card or account details reach this site."
+#: settings.php:78
+msgid "Take payments for shop orders and credit packages through PayPal. Buyers pay on PayPal's own pages, so no card or account details reach this site."
 msgstr ""
 
 #: src/Plugin.php:426
@@ -241,7 +241,7 @@ msgstr ""
 msgid "Under Webhooks in the same app, after you add the URL below. Optional in sandbox; needed to go live."
 msgstr ""
 
-#: settings.php:104
+#: settings.php:105
 msgid "Webhook"
 msgstr ""
 
@@ -249,7 +249,7 @@ msgstr ""
 msgid "Webhook ID"
 msgstr ""
 
-#: settings.php:109
+#: settings.php:110
 msgid "Webhook URL"
 msgstr ""
 
