@@ -28,7 +28,7 @@ if ($missing !== 'http') {
 }
 spl_autoload_register(static function (string $class) use ($core, $dirs): void {
     foreach ($dirs as $prefix => $dir) {
-        $file = $core . '/oc-includes/osclass/classes/' . $dir . '/' . substr($class, strlen($prefix)) . '.php';
+        $file = core_class_file($core, $dir . '/' . substr($class, strlen($prefix)) . '.php');
         if (strncmp($class, $prefix, strlen($prefix)) === 0 && is_file($file)) {
             require $file;
         }

@@ -15,6 +15,25 @@ $GLOBALS['okCount']    = $GLOBALS['okCount'] ?? 0;
 $GLOBALS['failCount']  = $GLOBALS['failCount'] ?? 0;
 $GLOBALS['failLabels'] = $GLOBALS['failLabels'] ?? array();
 
+/**
+ * Path of a core class file given its old path under oc-includes/osclass/classes/. Core 7.1 keeps
+ * the classes in oc-includes/classes/<feature>/; older cores keep the old folder.
+ */
+function core_class_file(string $core, string $rel): string
+{
+    $core  = rtrim($core, '/');
+    $moved = array('currency' => 'billing/currency', 'category' => 'listing/category', 'auth' => 'user/auth', 'apikey' => 'user/apikey');
+    $top   = strtok($rel, '/');
+    $tail  = substr($rel, strlen($top));
+    foreach (array($moved[$top] ?? $top, 'core/' . $top) as $dir) {
+        if (is_file($core . '/oc-includes/classes/' . $dir . $tail)) {
+            return $core . '/oc-includes/classes/' . $dir . $tail;
+        }
+    }
+
+    return $core . '/oc-includes/osclass/classes/' . $rel;
+}
+
 function describe($v): string
 {
     if ($v === null) {
