@@ -271,6 +271,7 @@ class PayPalGateway implements Refunds, DashboardLinkGateway
      * @param string                    $requestId
      *
      * @return CallbackResult
+     * @throws HttpException when a part refund's outcome is unknown (no answer, or a 5xx), so core keeps its key for the retry
      */
     private function sendRefund(Order $order, ?array $amount, string $requestId): CallbackResult
     {
@@ -281,6 +282,10 @@ class PayPalGateway implements Refunds, DashboardLinkGateway
             }
             $refund = $this->api->refundCapture($capture, $requestId, $amount);
         } catch (HttpException $e) {
+            if ($amount !== null && ($e->getCode() === 0 || $e->getCode() >= 500)) {
+                throw $e;
+            }
+
             return CallbackResult::ignored(self::short($e->getMessage()));
         }
 

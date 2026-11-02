@@ -52,8 +52,19 @@ pin('a cancelled part refund changes nothing, and says why', array(CallbackResul
 $http->on('POST', $path, 422, array('name' => 'UNPROCESSABLE_ENTITY', 'details' => array(array('issue' => 'REFUND_AMOUNT_EXCEEDED'))));
 pin('a refusal comes back with PayPal\'s reason', 'PayPal answered 422: UNPROCESSABLE_ENTITY (REFUND_AMOUNT_EXCEEDED)', $gateway->refundPart($order, 9_000_000, 'order:1:refund:5')->getMessage());
 
+$throws = static function (callable $fn): bool {
+    try {
+        $fn();
+    } catch (Throwable $e) {
+        return true;
+    }
+
+    return false;
+};
 $http->down('POST', $path);
-pin('PayPal down is ignored with a reason', 'PayPal could not be reached: timeout', $gateway->refundPart($order, 1_000_000, 'order:1:refund:6')->getMessage());
+check('PayPal down throws, so core keeps the key for the retry', $throws(static fn () => $gateway->refundPart($order, 1_000_000, 'order:1:refund:6')));
+$http->on('POST', $path, 503, array('name' => 'INTERNAL_SERVER_ERROR'));
+check('a PayPal 5xx throws too', $throws(static fn () => $gateway->refundPart($order, 1_000_000, 'order:1:refund:6')));
 
 harness_section('refused before PayPal is asked');
 
