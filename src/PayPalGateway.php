@@ -18,7 +18,6 @@ use mindstellar\billing\CallbackResult;
 use mindstellar\billing\CheckoutIntent;
 use mindstellar\billing\DashboardLinkGateway;
 use mindstellar\billing\Order;
-use mindstellar\billing\RefundableGateway;
 use mindstellar\http\HttpClient;
 use mindstellar\http\HttpException;
 use Throwable;
@@ -28,7 +27,7 @@ use Throwable;
  * webhooks or data fetched from PayPal, always through Billing::handleCallback() so core's checks apply.
  * Tests extend it to replace the four protected methods that touch the request, core and mail.
  */
-class PayPalGateway implements RefundableGateway, DashboardLinkGateway
+class PayPalGateway implements Refunds, DashboardLinkGateway
 {
     /** Gateway id stored on every order. */
     public const ID = 'paypal';
@@ -235,12 +234,52 @@ class PayPalGateway implements RefundableGateway, DashboardLinkGateway
      */
     public function refund(Order $order): CallbackResult
     {
+        return $this->sendRefund($order, null, 'refund-' . $this->config->siteId . '-' . $order->getId());
+    }
+
+    /**
+     * Refund part of a paid order. Core passes its own key per refund, so a retried request refunds once.
+     *
+     * @param Order  $order
+     * @param int    $amount Micros, in the order's currency
+     * @param string $key    Core's refund key, such as order:12:refund:2
+     *
+     * @return CallbackResult refunded() or refundPending() with the refund id once PayPal took it
+     */
+    public function refundPart(Order $order, int $amount, string $key): CallbackResult
+    {
+        if (!preg_match('/^[A-Za-z0-9:_-]{1,40}$/', $key)) {
+            return CallbackResult::ignored('malformed refund key');
+        }
+        if ($amount <= 0 || $amount > $order->getAmount()) {
+            return CallbackResult::ignored('the refund must be more than 0 and at most the order total');
+        }
+        $currency = strtoupper($order->getCurrency());
+        $value    = Money::toValue($amount, $currency);
+        if ($value === null) {
+            return CallbackResult::ignored('amount cannot be refunded in ' . $currency);
+        }
+
+        return $this->sendRefund($order, array('value' => $value, 'currency_code' => $currency), 'refund-' . $this->config->siteId . '-' . $key);
+    }
+
+    /**
+     * Ask PayPal to refund the order's capture: the rest of it, or $amount.
+     *
+     * @param Order                     $order
+     * @param array<string,string>|null $amount    {value, currency_code}, or null for a full refund
+     * @param string                    $requestId
+     *
+     * @return CallbackResult
+     */
+    private function sendRefund(Order $order, ?array $amount, string $requestId): CallbackResult
+    {
         try {
             $capture = $this->captureOf($order);
             if ($capture === null) {
                 return CallbackResult::ignored('no PayPal payment found for this order');
             }
-            $refund = $this->api->refundCapture($capture, 'refund-' . $this->config->siteId . '-' . $order->getId());
+            $refund = $this->api->refundCapture($capture, $requestId, $amount);
         } catch (HttpException $e) {
             return CallbackResult::ignored(self::short($e->getMessage()));
         }
@@ -254,8 +293,8 @@ class PayPalGateway implements RefundableGateway, DashboardLinkGateway
             return CallbackResult::refunded($order->getId(), $id);
         }
         if ($status === 'PENDING') {
-            // The PAYMENT.CAPTURE.REFUNDED webhook settles the order once PayPal finishes.
-            return self::pendingRefund($order, $id, 'PayPal is still processing the refund; the order updates when it completes.');
+            // The PAYMENT.CAPTURE.REFUNDED webhook settles a full refund once PayPal finishes.
+            return self::pendingRefund($order, $id, 'PayPal is still processing the refund' . ($amount === null ? '; the order updates when it completes.' : '.'));
         }
 
         return CallbackResult::ignored('PayPal did not accept the refund' . ($status !== '' ? ' (' . $status . ')' : ''));

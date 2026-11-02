@@ -24,6 +24,7 @@ $path    = 'v2/payments/captures/' . pp_capture_id(1) . '/refund';
 harness_section('refund');
 
 check('the gateway offers refunds', $gateway instanceof RefundableGateway);
+check('offers part refunds only on a core that has them', ($gateway instanceof \mindstellar\billing\PartialRefundableGateway) === interface_exists('mindstellar\\billing\\PartialRefundableGateway'));
 
 $http->on('POST', $path, 201, array('id' => '1JU08902781691411', 'status' => 'COMPLETED'));
 $r   = $gateway->refund($order);

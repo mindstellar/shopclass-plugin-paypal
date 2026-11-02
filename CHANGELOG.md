@@ -1,5 +1,10 @@
 # Changelog
 
+## Unreleased
+
+### New
+- Part refunds from the admin go through PayPal on Shopclass 7.1.
+
 ## 0.1.8
 
 ### Changed
