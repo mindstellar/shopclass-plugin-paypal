@@ -9,12 +9,15 @@
  * Part refunds asked for from the admin (Shopclass 7.1).
  */
 
-const PARTIAL_REFUND_STUB = true;
-
 require __DIR__ . '/lib/bootstrap.php';
 
 use mindstellar\billing\CallbackResult;
 use mindstellar\billing\PartialRefundableGateway;
+
+if (!interface_exists(PartialRefundableGateway::class)) {
+    check('skipped: part refunds need Shopclass 7.1', true);
+    exit(harness_result());
+}
 use mindstellar\paypal\PayPalGateway;
 
 $http    = new FakeHttp();
