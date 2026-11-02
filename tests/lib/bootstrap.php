@@ -54,6 +54,11 @@ if (!function_exists('__')) {
     }
 }
 
+// A test that defines PARTIAL_REFUND_STUB gets core's part-refund interface even on a core without it.
+if (defined('PARTIAL_REFUND_STUB') && !interface_exists('mindstellar\\billing\\PartialRefundableGateway')) {
+    require_once __DIR__ . '/partial-refundable.php';
+}
+
 $GLOBALS['flash'] = array();
 if (!function_exists('osc_add_flash_error_message')) {
     function osc_add_flash_error_message($msg, $section = 'pubMessages')

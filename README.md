@@ -41,6 +41,7 @@ The secret is never shown again. Leave its box blank to keep it. **Name at check
 - Once a day, pending orders over an hour old are checked with PayPal. Orders never approved are closed after a day.
 - If a payment arrives for an order already closed, the plugin refunds it and e-mails the site's contact address.
 - To refund, open the order under **Billing → Orders** and press **Refund**. The whole payment is refunded and core takes the credits back. A full refund made in your PayPal account is recorded the same way.
+- On core 7.1, **Refund part** on a shop order sends part of the money back through PayPal. The site records it with a credit note, and the order shows **Partly refunded**.
 
 ## Notes / limits
 
@@ -48,7 +49,7 @@ The secret is never shown again. Leave its box blank to keep it. **Name at check
 - Webhook ID is optional in sandbox and required in live mode.
 - Supported currencies: AUD, BRL, CAD, CHF, CNY, CZK, DKK, EUR, GBP, HKD, HUF, ILS, JPY, MXN, MYR, NOK, NZD, PHP, PLN, SEK, SGD, THB, TWD, USD. Other currencies hide PayPal.
 - HUF, JPY and TWD are charged in whole units. A price with a fraction in them cannot be paid.
-- Partial refunds made in PayPal change nothing on the site.
+- A partial refund made in the PayPal dashboard changes nothing on the site. Use **Refund part** instead.
 - Several sites can share one PayPal account. Give each site its own webhook.
 - Uninstalling removes the settings, saved secrets and cached token. The site id is kept, so orders in flight settle after a reinstall.
 - No tables of its own. Retries and the daily check use core's job queue.

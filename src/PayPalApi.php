@@ -123,16 +123,17 @@ final class PayPalApi
     }
 
     /**
-     * Refund a capture in full.
+     * Refund a capture: in full, or the amount object in $amount.
      *
-     * @param string $captureId
-     * @param string $requestId
+     * @param string                    $captureId
+     * @param string                    $requestId
+     * @param array<string,string>|null $amount    {value, currency_code}, or null for the rest of the capture
      *
      * @return array<string,mixed>
      */
-    public function refundCapture(string $captureId, string $requestId): array
+    public function refundCapture(string $captureId, string $requestId, ?array $amount = null): array
     {
-        return $this->call('POST', 'v2/payments/captures/' . rawurlencode($captureId) . '/refund', array(), $requestId);
+        return $this->call('POST', 'v2/payments/captures/' . rawurlencode($captureId) . '/refund', $amount === null ? array() : array('amount' => $amount), $requestId);
     }
 
     /**
