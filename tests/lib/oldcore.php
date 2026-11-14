@@ -14,7 +14,7 @@
 
 require_once __DIR__ . '/harness.php';
 
-$core = rtrim(getenv('SHOPCLASS_CORE') ?: dirname(__DIR__, 3) . '/osclass', '/');
+$core = rtrim(getenv('SHOPCLASS_CORE') ?: dirname(__DIR__, 3) . '/shopclass', '/');
 define('ABS_PATH', $core . '/');
 
 $dirs = array('mindstellar\\base\\' => 'base', 'mindstellar\\currency\\' => 'currency');

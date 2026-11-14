@@ -15,7 +15,7 @@
  *   SHOPCLASS_CORE=/path/to/core php tests/integration/billing.php
  */
 
-$core = rtrim(getenv('SHOPCLASS_CORE') ?: dirname(__DIR__, 3) . '/osclass', '/');
+$core = rtrim(getenv('SHOPCLASS_CORE') ?: dirname(__DIR__, 3) . '/shopclass', '/');
 require_once $core . '/tests/lib/scratchdb.php';
 require_once $core . '/tests/lib/harness.php';
 

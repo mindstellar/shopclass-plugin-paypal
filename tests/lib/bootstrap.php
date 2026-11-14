@@ -14,7 +14,7 @@ require_once __DIR__ . '/harness.php';
 
 function core_path(): string
 {
-    $path = getenv('SHOPCLASS_CORE') ?: dirname(__DIR__, 3) . '/osclass';
+    $path = getenv('SHOPCLASS_CORE') ?: dirname(__DIR__, 3) . '/shopclass';
     if (!is_file(core_class_file($path, 'billing/PaymentGatewayRegistry.php'))) {
         fwrite(STDERR, "Shopclass core not found at $path. Set SHOPCLASS_CORE to a checkout of 7.0.0 or later.\n");
         exit(2);

@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Unit tests: no database, no network. They load core's billing classes from
-# SHOPCLASS_CORE, or ../osclass. tests/integration/ needs core's scratch MySQL and runs on its own.
+# SHOPCLASS_CORE, or ../shopclass. tests/integration/ needs core's scratch MySQL and runs on its own.
 set -u
 cd "$(dirname "$0")/.."
 fail=0
