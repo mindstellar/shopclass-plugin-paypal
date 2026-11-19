@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.1.10
+
+### Changed
+- Admin pages are under Plugins → PayPal.
+
 ## 0.1.9
 
 ### New
